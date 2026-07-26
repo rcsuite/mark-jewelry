@@ -1,0 +1,51 @@
+---
+description: How to read data from Supabase in this app (never in useEffect)
+globs: app/**/*.tsx,app/**/*.ts,lib/**/*.ts
+alwaysApply: false
+---
+
+# NEVER fetch Supabase inside useEffect
+
+Fetching on mount causes empty-state flashes, request waterfalls, and rate-limit
+risk. Read data on the server before render instead.
+
+```tsx
+// ❌ BAD — the pattern to remove wherever it still exists
+'use client'
+export default function Page() {
+  const [items, setItems] = useState([])
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase.from('shop_inventory').select('*')
+      if (data) setItems(data)
+    }
+    load()
+  }, [])
+}
+
+// ✅ GOOD — async Server Component, no 'use client'
+import { getInventory } from '@/lib/queries'
+
+export default async function Page() {
+  const items = await getInventory()
+  return <ShopGrid items={items} />
+}
+```
+
+## Rules
+
+- Put queries in `lib/queries.ts` and call them from `async` Server Components.
+  Use the `@supabase/ssr` server client (`cookies()` is async: `await cookies()`).
+- Keep `'use client'` for interactivity only (filters, modals, cropper, carousels).
+  Pass data down as props from a server parent.
+- Slow or uncached sections belong in their own `<Suspense>` boundary so the rest of
+  the page renders immediately.
+- Cache rarely-changing reads with the `use cache` directive rather than refetching.
+- `useSearchParams` suspends during server render, so any component using it needs a
+  `<Suspense>` boundary (see `app/shop/page.tsx`).
+- Avoid `.single()` — it throws on 0 or 2+ rows. Use `.maybeSingle()` and handle null.
+- Exception: `useEffect` may invoke a **Server Action** for a mutation (e.g. a view
+  counter). It must never perform a read.
+
+Consult `node_modules/next/dist/docs/01-app/01-getting-started/06-fetching-data.md`
+before changing data flow.

@@ -1,0 +1,57 @@
+---
+description: Category slugs, photo fields, and image upload conventions for the storefront
+globs: app/**/*.tsx,lib/**/*.ts
+alwaysApply: false
+---
+
+# Storefront data conventions
+
+## One source of truth for categories
+
+Category slugs must never be hardcoded per file. The homepage grid, the shop filter
+pills, `add-piece`, and the finalize modal all have to agree, or filtering silently
+breaks. Read categories on the server with `getCategories()` (`lib/queries.ts`) and pass
+them down as props — never import a category array from a client component.
+
+New categories are created through the `createCategory` Server Action in `lib/actions.ts`,
+which owns the slugification. Call `slugify()` from `lib/categories.ts` only to preview
+the slug in the UI; never build a slug by hand at an insert site.
+
+`show_on_homepage` gates the homepage grid only. The shop filter pills list every
+category so nothing becomes unreachable.
+
+## Always write the `photos` array
+
+`shop_inventory.photos` is a `text[]` and the shop reads `photos[0]` as the thumbnail.
+Writing a scalar `primary_image` instead produces a listing with no image.
+
+```ts
+// ❌ BAD
+{ primary_image: lastProgressImage }
+
+// ✅ GOOD
+{ photos: [lastProgressImage, ...otherAngles] }
+```
+
+## Uploads must persist to Supabase Storage
+
+`URL.createObjectURL(file)` returns a blob URL scoped to the current tab. It dies on
+reload, so it must never be saved to the database.
+
+```ts
+// ❌ BAD — currently in add-piece and current-project
+const mockUploadedUrl = imageSrc
+
+// ✅ GOOD
+const { data } = await supabase.storage.from('pieces').upload(path, croppedBlob)
+const url = supabase.storage.from('pieces').getPublicUrl(data.path).data.publicUrl
+```
+
+Upload the **cropped** output from `react-easy-crop`, not the original file. A
+non-empty `onCropComplete` handler is required to get the crop area.
+
+## Ordering and visibility
+
+Admin-reorderable lists (categories, reviews, handiworks) use an integer `sort_order`;
+always `.order('sort_order')` on read. Sold pieces stay in `shop_inventory` with
+`sold = true` rather than being deleted, so they can appear in the sold-pieces strip.

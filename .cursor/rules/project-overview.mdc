@@ -1,0 +1,45 @@
+---
+description: Architecture, routes, and the core business rule for Earthen Miners Designs
+alwaysApply: true
+---
+
+# Earthen Miners Designs
+
+A one-artisan jewelry storefront. The site revolves around a single "current build"
+that is forged one piece at a time, then moved into the shop ("The Vault") when done.
+
+Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind v4, Supabase
+(`@supabase/ssr`), Stripe (installed, checkout not yet wired up), `react-easy-crop`.
+
+## Routes
+
+| Route | Purpose |
+|---|---|
+| `/` | Homepage. Hero scrolls the current build **only when active**. |
+| `/shop` | "The Vault" — completed pieces, filter + search. |
+| `/workbench` | Live build timeline + video sessions. |
+| `/login` | Admin auth portal. |
+| `/admin` | Admin hub (guarded by `proxy.ts`). |
+| `/admin/current-project` | Manage the live build; finalize it into the shop. |
+| `/admin/add-piece` | Manually add a finished piece to the shop. |
+
+## The golden rule
+
+The homepage hero animates through `current_build.progress_images` **if and only if**
+`current_build.status === 'active'` and it has at least one image. Otherwise show the
+standby ("forge resting") state and point the CTA at `/shop`. `/workbench` follows the
+same gate.
+
+## The admin owns the storefront
+
+Everything a visitor sees — pieces, photos, categories, reviews, the available
+handiworks list, ordering — is editable from `/admin` and read from Supabase.
+Never hardcode storefront content in a page component; add it to the database and
+an admin editor instead.
+
+## Aesthetic
+
+Industrial-artisan dark theme. Base `#05070A`, panels `#0A0C10`, borders `#27272A`,
+teal `#14B8A6`, flash cyan `#00F2FE`, brass `#B59A54`, muted `#71717A`. Oswald for
+display text (uppercase, tracked, via `.display-font`), Inter for body. Match this
+on any new page.

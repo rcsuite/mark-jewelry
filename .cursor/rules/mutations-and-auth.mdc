@@ -1,0 +1,50 @@
+---
+description: Server Actions, admin authorization, and post-mutation refresh rules
+globs: app/**/*.tsx,app/**/*.ts,lib/**/*.ts
+alwaysApply: false
+---
+
+# Mutations and auth
+
+## Use Server Actions, not client-side writes
+
+Admin writes belong in a `'use server'` module (e.g. `lib/actions.ts`), not inline
+`supabase.from(...).insert()` calls in a client component.
+
+## Always re-check auth inside the action
+
+`proxy.ts` guards `/admin/*`, but Proxy is only an optimistic check and Server Actions
+are reachable by direct POST. Every action must verify the session itself:
+
+```ts
+'use server'
+import { revalidatePath } from 'next/cache'
+
+export async function addPiece(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  // ...mutate...
+  revalidatePath('/shop')
+}
+```
+
+## Refresh, don't reload
+
+Never use `window.location.reload()` to show new data. Call `revalidatePath(...)` for
+the affected routes (or `refresh()` from `next/cache`) inside the action.
+
+## Feedback
+
+Prefer `useActionState` for pending/error state over `alert()` and a manual
+`isSaving` boolean.
+
+## Keys
+
+`NEXT_PUBLIC_*` keys are anon keys and are subject to RLS. Never use
+`createBrowserClient` inside a Route Handler or Server Action — use the server client.
+A service-role key, if ever added, must never be prefixed `NEXT_PUBLIC_`.
+
+Consult `node_modules/next/dist/docs/01-app/01-getting-started/07-mutating-data.md`
+before adding or changing an action.

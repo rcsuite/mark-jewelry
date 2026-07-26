@@ -82,7 +82,7 @@ export default function LoginPortal() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-[#0A0C10] border border-[#27272A] rounded-sm px-4 py-4 text-white font-light focus:outline-none focus:border-[#14B8A6] transition-colors" 
-              placeholder="mark" 
+              placeholder="enter handle" 
             />
           </div>
           <div>
@@ -95,7 +95,7 @@ export default function LoginPortal() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-[#0A0C10] border border-[#27272A] rounded-sm px-4 py-4 text-white font-light focus:outline-none focus:border-[#14B8A6] transition-colors tracking-widest" 
-              placeholder="••••••••••••" 
+              placeholder="enter password" 
             />
           </div>
 
