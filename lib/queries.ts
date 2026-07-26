@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
-import type { Category, CurrentBuild, HeroSlide, ShopPiece, VideoSession } from '@/lib/types'
+import { withLivePrice, withLivePrices } from '@/lib/pricing'
+import { getSilverSpotPerOz } from '@/lib/silver'
+import type { Category, CurrentBuild, HeroSlide, Review, ShopPiece, VideoSession } from '@/lib/types'
 
 export async function getCategories(): Promise<Category[]> {
   const supabase = await createClient()
@@ -13,25 +15,47 @@ export async function getCategories(): Promise<Category[]> {
     return []
   }
 
-  return (data ?? []).map((row) => ({
+  return (data ?? []).map((row) => toCategory(row as Record<string, unknown>))
+}
+
+export function toCategory(row: Record<string, unknown>): Category {
+  return {
     id: String(row.id),
     slug: String(row.slug),
     title: String(row.title),
     short_name: String(row.short_name || row.title),
     description: String(row.description ?? ''),
-    image_url: row.image_url ?? null,
+    image_url: (row.image_url as string | null) ?? null,
     sort_order: Number(row.sort_order ?? 0),
     show_on_homepage: Boolean(row.show_on_homepage),
-  }))
+  }
 }
 
-function normalizePiece(row: Record<string, unknown>): ShopPiece {
+function nullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+export function normalizePiece(row: Record<string, unknown>): ShopPiece {
+  const primary = String(row.category ?? '')
+  const categories = Array.isArray(row.categories)
+    ? (row.categories as unknown[]).filter((c): c is string => typeof c === 'string' && c.trim() !== '')
+    : primary
+      ? [primary]
+      : []
+
   return {
     id: String(row.id),
     title: String(row.title ?? ''),
-    category: String(row.category ?? ''),
+    category: primary || categories[0] || '',
+    categories: categories.length ? categories : primary ? [primary] : [],
     piece_type: String(row.piece_type ?? ''),
     price: Number(row.price ?? 0),
+    material_cost: nullableNumber(row.material_cost),
+    workmanship_cost: nullableNumber(row.workmanship_cost),
+    silver_grams: nullableNumber(row.silver_grams),
+    inquire_for_price: Boolean(row.inquire_for_price),
     photos: Array.isArray(row.photos)
       ? row.photos.filter((p): p is string => typeof p === 'string' && p.trim() !== '')
       : [],
@@ -39,6 +63,10 @@ function normalizePiece(row: Record<string, unknown>): ShopPiece {
     tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
     specs: (row.specs as ShopPiece['specs']) ?? null,
     created_at: (row.created_at as string | null) ?? null,
+    sold: Boolean(row.sold),
+    sort_order: Number(row.sort_order ?? 0),
+    featured: Boolean(row.featured),
+    featured_sort_order: Number(row.featured_sort_order ?? 0),
   }
 }
 
@@ -56,6 +84,32 @@ function normalizeVideos(raw: unknown): VideoSession[] {
       date: String((v as VideoSession).date || ''),
       url: String((v as VideoSession).url),
     }))
+}
+
+export function toReview(row: Record<string, unknown>): Review {
+  return {
+    id: String(row.id),
+    quote: String(row.quote ?? ''),
+    author: String(row.author ?? ''),
+    location: String(row.location ?? ''),
+    rating: Number(row.rating ?? 5),
+    sort_order: Number(row.sort_order ?? 0),
+  }
+}
+
+export async function getReviews(): Promise<Review[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('*')
+    .order('sort_order', { ascending: true })
+
+  if (error) {
+    console.error('getReviews:', error.message)
+    return []
+  }
+
+  return (data ?? []).map((row) => toReview(row as Record<string, unknown>))
 }
 
 export async function getCurrentBuild(): Promise<CurrentBuild | null> {
@@ -86,25 +140,130 @@ export async function getCurrentBuild(): Promise<CurrentBuild | null> {
   }
 }
 
+/** All pieces (admin). Ordered by sort_order. Live silver formula applied when spot is available. */
 export async function getShopInventory(): Promise<ShopPiece[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('shop_inventory')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const [{ data, error }, spot] = await Promise.all([
+    supabase.from('shop_inventory').select('*').order('sort_order', { ascending: true }),
+    getSilverSpotPerOz(),
+  ])
 
   if (error) {
     console.error('getShopInventory:', error.message)
     return []
   }
 
-  return (data ?? []).map((row) => normalizePiece(row as Record<string, unknown>))
+  return withLivePrices(
+    (data ?? []).map((row) => normalizePiece(row as Record<string, unknown>)),
+    spot
+  )
 }
 
-/** Homepage preview: newest available pieces. */
-export async function getFeaturedInventory(limit = 4): Promise<ShopPiece[]> {
-  const inventory = await getShopInventory()
-  return inventory.slice(0, limit)
+/** Public shop: available (not sold) pieces. */
+export async function getAvailableInventory(): Promise<ShopPiece[]> {
+  const pieces = await getShopInventory()
+  return pieces.filter((p) => !p.sold)
+}
+
+export async function getPiecesByCategory(slug: string): Promise<ShopPiece[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('shop_inventory')
+    .select('*')
+    .contains('categories', [slug])
+    .order('sort_order', { ascending: true })
+
+  if (error) {
+    console.error('getPiecesByCategory:', error.message)
+    // Fallback for rows not yet backfilled / older clients
+    const fallback = await supabase
+      .from('shop_inventory')
+      .select('*')
+      .eq('category', slug)
+      .order('sort_order', { ascending: true })
+    if (fallback.error) return []
+    return (fallback.data ?? []).map((row) => normalizePiece(row as Record<string, unknown>))
+  }
+
+  return withLivePrices(
+    (data ?? []).map((row) => normalizePiece(row as Record<string, unknown>)),
+    await getSilverSpotPerOz()
+  )
+}
+
+export async function getPieceById(id: string): Promise<ShopPiece | null> {
+  const supabase = await createClient()
+  const [{ data, error }, spot] = await Promise.all([
+    supabase.from('shop_inventory').select('*').eq('id', id).maybeSingle(),
+    getSilverSpotPerOz(),
+  ])
+
+  if (error) {
+    console.error('getPieceById:', error.message)
+    return null
+  }
+
+  return data ? withLivePrice(normalizePiece(data as Record<string, unknown>), spot) : null
+}
+
+export async function getCategoryBySlug(slug: string): Promise<Category | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .eq('slug', slug)
+    .maybeSingle()
+
+  if (error) {
+    console.error('getCategoryBySlug:', error.message)
+    return null
+  }
+
+  return data ? toCategory(data as Record<string, unknown>) : null
+}
+
+/** Homepage Available Handiworks strip. */
+export async function getFeaturedInventory(limit = 8): Promise<ShopPiece[]> {
+  const supabase = await createClient()
+  const [{ data, error }, spot] = await Promise.all([
+    supabase
+      .from('shop_inventory')
+      .select('*')
+      .eq('featured', true)
+      .eq('sold', false)
+      .order('featured_sort_order', { ascending: true })
+      .limit(limit),
+    getSilverSpotPerOz(),
+  ])
+
+  if (error) {
+    console.error('getFeaturedInventory:', error.message)
+    return []
+  }
+
+  return withLivePrices(
+    (data ?? []).map((row) => normalizePiece(row as Record<string, unknown>)),
+    spot
+  )
+}
+
+/** Homepage sold strip. */
+export async function getSoldInventory(limit = 12): Promise<ShopPiece[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('shop_inventory')
+    .select('*')
+    .eq('sold', true)
+    .order('sort_order', { ascending: true })
+    .limit(limit)
+
+  if (error) {
+    console.error('getSoldInventory:', error.message)
+    return []
+  }
+
+  // Sold prices stay historical — no live overlay.
+  return (data ?? []).map((row) => normalizePiece(row as Record<string, unknown>))
 }
 
 export function isBuildActive(build: CurrentBuild | null): boolean {

@@ -106,10 +106,28 @@ category select in the admin.
 Public `SELECT`; `authenticated` may write. Rows are created by the `createCategory`
 Server Action, never by a client-side insert.
 
+### `reviews` — Ironclad Verdicts
+
+| Column | Type | Notes |
+|---|---|---|
+| `quote` | text | Review body |
+| `author` | text | Display name |
+| `location` | text | Optional place |
+| `rating` | numeric | Stars (default 5) |
+| `sort_order` | int | Drag order on homepage |
+
+### `shop_inventory` extras for homepage editing
+
+| Column | Type | Notes |
+|---|---|---|
+| `sold` | bool | True → sold strip, hidden from shop |
+| `sort_order` | int | Order within a category |
+| `featured` | bool | True → Available Handiworks |
+| `featured_sort_order` | int | Drag order on the handiworks strip |
+
 ### Planned tables
 
-`reviews` and `handiworks`, each with `sort_order`, so the remaining homepage sections
-become admin-editable instead of hardcoded. See `docs/ROADMAP.md`.
+None currently — homepage sections are DB-driven. See `docs/ADMIN_EDITING.md`.
 
 ## Data flow rules
 

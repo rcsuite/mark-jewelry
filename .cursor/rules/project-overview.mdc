@@ -22,6 +22,7 @@ Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind v4, Supabase
 | `/admin` | Admin hub (guarded by `proxy.ts`). |
 | `/admin/current-project` | Manage the live build; finalize it into the shop. |
 | `/admin/add-piece` | Manually add a finished piece to the shop. |
+| `/admin/homepage` | Editable mirror of `/` — drag, pencil, reorder. |
 
 ## The golden rule
 
@@ -36,6 +37,11 @@ Everything a visitor sees — pieces, photos, categories, reviews, the available
 handiworks list, ordering — is editable from `/admin` and read from Supabase.
 Never hardcode storefront content in a page component; add it to the database and
 an admin editor instead.
+
+Edits must feel **user-intuitive**: mirror the public layout, cyan highlight when
+something is movable, pencil on every unit, drag to reorder, click a piece to edit
+every stored field. Full ethos: `docs/ADMIN_EDITING.md` and
+`.cursor/rules/admin-editing-ethos.mdc`.
 
 ## Aesthetic
 

@@ -1,0 +1,46 @@
+---
+description: User-intuitive storefront editing ethos — how admin UIs must feel
+alwaysApply: true
+---
+
+# Admin editing ethos
+
+Any time we add or change how Mark edits the storefront, design it so he can
+**see the site and poke it** — not fill out a spreadsheet of forms.
+
+## The goal
+
+Edits should feel like rearranging the shop floor. If a visitor can see it on
+`/`, Mark should be able to change it from a screen that **looks like `/`**,
+with obvious click / drag / pencil controls.
+
+## What that looks like (x, y, z)
+
+1. **Mirror the public layout.** `/admin/homepage` (and similar) should match
+   the real homepage sections, spacing, and cards. Public `/` stays clean —
+   no pencils, no drag handles.
+2. **Cyan = “this is editable / selected / being dragged.”** Use the existing
+   teal/cyan accent (`#14B8A6` / `#00F2FE`) as the hover and active border,
+   never a separate “admin purple” look.
+3. **Pencil on every editable unit.** Categories, reviews, handiwork cards,
+   sold thumbnails — each gets a small pencil. Pencil deepens into that unit’s
+   world; drag reorders peers at the current level.
+4. **Drag to reorder, don’t type a sort number.** Persist order as `sort_order`.
+5. **Click a piece → edit every stored field.** Title, price, category, kind,
+   description, tags, specs, photos, sold/featured. No hidden columns.
+6. **Category pencil → shop-like page for that category.** Cover photo, all
+   pieces in the category, drag-reorder pieces. Same visual language as `/shop`.
+7. **Short content edits in place.** Reviews (quote, author, stars) open a
+   small panel on the mirror page — don’t force a full route for three fields.
+8. **Add with `+`, remove without surprise.** Removing from “Available
+   Handiworks” un-features a piece; marking Sold moves it to the sold strip and
+   off the shop grid. Deleting a category or review asks for confirmation.
+
+## When adding a new feature
+
+Ask: “Can Mark discover this by looking at the page and clicking?” If the only
+answer is a buried settings form or a raw slug field, redesign before shipping.
+
+Prefer: mirror page → pencil / drag → focused editor.
+Avoid: admin-only tables of IDs, manual `sort_order` number inputs, content
+hardcoded in JSX.

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import type { Category, CurrentBuild, HeroSlide, ShopPiece } from '@/lib/types'
+import type { Category, CurrentBuild, HeroSlide, Review, ShopPiece } from '@/lib/types'
 
 type HomePageProps = {
   build: CurrentBuild | null
@@ -10,6 +10,8 @@ type HomePageProps = {
   featured: ShopPiece[]
   forgeActive: boolean
   categories: Category[]
+  reviews: Review[]
+  sold: ShopPiece[]
 }
 
 function pieceBlurb(piece: ShopPiece): string {
@@ -28,6 +30,8 @@ export default function HomePage({
   featured,
   forgeActive,
   categories,
+  reviews,
+  sold,
 }: HomePageProps) {
   const [slideIndex, setSlideIndex] = useState(0)
 
@@ -66,8 +70,22 @@ export default function HomePage({
         <div className="text-3xl display-font tracking-widest text-white">
           Earthen Miners <span className="labradorite-teal">Designs</span>
         </div>
-        <div className="text-xs tracking-[0.3em] uppercase font-bold metal-oxidized hidden md:block">
-          Forged from earth & fire • USA
+        <div className="flex items-center gap-6">
+          <Link
+            href="/shop"
+            className="text-xs tracking-[0.2em] uppercase font-bold text-[#A1A1AA] hover:text-[#14B8A6]"
+          >
+            Shop
+          </Link>
+          <Link
+            href="/contact"
+            className="text-xs tracking-[0.2em] uppercase font-bold text-[#A1A1AA] hover:text-[#14B8A6]"
+          >
+            Contact
+          </Link>
+          <div className="text-xs tracking-[0.3em] uppercase font-bold metal-oxidized hidden md:block">
+            Forged from earth & fire • USA
+          </div>
         </div>
       </nav>
 
@@ -204,46 +222,33 @@ export default function HomePage({
         <h2 className="text-4xl md:text-5xl display-font text-center mb-16 text-white uppercase tracking-wider">
           Ironclad Verdicts
         </h2>
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="bg-[#0A0C10] p-8 border border-white/5 relative group rounded-sm overflow-hidden">
-            <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-[#14B8A6] opacity-5 blur-3xl group-hover:opacity-10 transition-opacity"></div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#A1A1AA] mb-1 font-semibold">
-              <span>5.0</span> <span className="labradorite-flash">★★★★★</span>
-            </div>
-            <p className="text-lg md:text-xl font-bold leading-relaxed mb-6 uppercase text-white tracking-wide">
-              &quot;Finally, jewelry that doesn&apos;t feel fragile. You know you&apos;re wearing it. This
-              ring is a solid piece of industrial art. Biker tested.&quot;
-            </p>
-            <p className="text-xs tracking-[0.2em] uppercase metal-oxidized font-bold">— Jax M., CA</p>
+        {reviews.length > 0 ? (
+          <div className="grid md:grid-cols-3 gap-8">
+            {reviews.map((review) => (
+              <div
+                key={review.id}
+                className="bg-[#0A0C10] p-8 border border-white/5 relative group rounded-sm overflow-hidden"
+              >
+                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-[#14B8A6] opacity-5 blur-3xl group-hover:opacity-10 transition-opacity"></div>
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#A1A1AA] mb-1 font-semibold">
+                  <span>{review.rating.toFixed(1)}</span>{' '}
+                  <span className="labradorite-flash">
+                    {'★'.repeat(Math.max(1, Math.round(review.rating)))}
+                  </span>
+                </div>
+                <p className="text-lg md:text-xl font-bold leading-relaxed mb-6 uppercase text-white tracking-wide">
+                  &quot;{review.quote}&quot;
+                </p>
+                <p className="text-xs tracking-[0.2em] uppercase metal-oxidized font-bold">
+                  — {review.author}
+                  {review.location ? `, ${review.location}` : ''}
+                </p>
+              </div>
+            ))}
           </div>
-          <div className="bg-[#0A0C10] p-8 border border-white/5 relative group rounded-sm overflow-hidden">
-            <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-[#14B8A6] opacity-5 blur-3xl group-hover:opacity-10 transition-opacity"></div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#A1A1AA] mb-1 font-semibold">
-              <span>5.0</span> <span className="labradorite-flash">★★★★★</span>
-            </div>
-            <p className="text-lg md:text-xl font-bold leading-relaxed mb-6 uppercase text-white tracking-wide">
-              &quot;The Labradorite stone has incredible flash, set deep into massive silver. I
-              don&apos;t dread documenting my day anymore because I just want to look at this
-              ring.&quot;
-            </p>
-            <p className="text-xs tracking-[0.2em] uppercase metal-oxidized font-bold">
-              — James Harfield, NY
-            </p>
-          </div>
-          <div className="bg-[#0A0C10] p-8 border border-white/5 relative group rounded-sm overflow-hidden">
-            <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-[#14B8A6] opacity-5 blur-3xl group-hover:opacity-10 transition-opacity"></div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#A1A1AA] mb-1 font-semibold">
-              <span>5.0</span> <span className="labradorite-flash">★★★★★</span>
-            </div>
-            <p className="text-lg md:text-xl font-bold leading-relaxed mb-6 uppercase text-white tracking-wide">
-              &quot;I ordered a pendant and asked for a specific hammered finish. Mark hit it
-              perfectly. It looks like it was dug out of an ancient forge.&quot;
-            </p>
-            <p className="text-xs tracking-[0.2em] uppercase metal-oxidized font-bold">
-              — Collector, TX
-            </p>
-          </div>
-        </div>
+        ) : (
+          <p className="text-center text-[#71717A] text-sm">Reviews coming soon.</p>
+        )}
       </section>
 
       <section className="bg-[#0A0C10] py-24 border-y border-white/5 relative z-10">
@@ -286,7 +291,9 @@ export default function HomePage({
                     <p className="text-sm metal-oxidized mb-4 line-clamp-2">{pieceBlurb(piece)}</p>
                     <div className="flex justify-between items-baseline border-t border-white/5 pt-4">
                       <span className="text-lg font-bold text-white">
-                        ${piece.price.toFixed(2)}
+                        {piece.inquire_for_price
+                          ? 'Inquire'
+                          : `$${piece.price.toFixed(2)}`}
                       </span>
                       <span className="accent-brass text-[10px] font-bold tracking-widest uppercase">
                         View Specs
@@ -309,12 +316,47 @@ export default function HomePage({
         </div>
       </section>
 
+      {sold.length > 0 && (
+        <section className="py-20 max-w-7xl mx-auto px-6 relative z-10 border-t border-white/5">
+          <h2 className="text-3xl display-font text-white uppercase tracking-wider mb-8 text-center">
+            Recently claimed
+          </h2>
+          <div className="flex gap-4 overflow-x-auto pb-2 justify-center">
+            {sold.map((piece) => (
+              <div
+                key={piece.id}
+                className="relative shrink-0 w-24 h-24 md:w-28 md:h-28 bg-[#111419] border border-white/5 overflow-hidden grayscale opacity-80"
+                title={piece.title}
+              >
+                {piece.photos[0] ? (
+                  <img
+                    src={piece.photos[0]}
+                    alt={piece.title}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white/20 display-font">
+                    SOLD
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <footer className="py-12 border-t border-white/5 bg-[#05070A] relative z-10 text-center">
         <div className="text-sm tracking-[0.2em] uppercase font-bold text-white/30">
           EARTHEN MINERS <span className="labradorite-teal">DESIGNS</span> &copy;{' '}
           {new Date().getFullYear()}
         </div>
         <p className="text-xs text-white/10 mt-2">Unapologetic Craft. No Molds. No Fluff.</p>
+        <Link
+          href="/contact"
+          className="inline-block mt-4 text-[10px] tracking-[0.2em] uppercase font-bold text-[#14B8A6]/70 hover:text-[#14B8A6]"
+        >
+          Contact Mark
+        </Link>
       </footer>
     </div>
   )

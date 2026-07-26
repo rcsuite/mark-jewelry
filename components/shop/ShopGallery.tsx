@@ -1,9 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { Category, ShopPiece } from '@/lib/types'
+import {
+  EMPTY_SHOP_FILTERS,
+  countActiveDetailFilters,
+  filterShopItems,
+  filtersFromSearchParams,
+  searchParamsFromFilters,
+  uniqueMaterials,
+  uniquePieceTypes,
+  type ShopFilters,
+} from '@/lib/shop-search'
 
 type ShopGalleryProps = {
   items: ShopPiece[]
@@ -11,45 +21,79 @@ type ShopGalleryProps = {
 }
 
 export default function ShopGallery({ items, categories }: ShopGalleryProps) {
-  const filters = [{ slug: 'all', name: 'All Specs' }].concat(
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const filters = useMemo(
+    () => filtersFromSearchParams(new URLSearchParams(searchParams.toString())),
+    [searchParams]
+  )
+
+  const [draft, setDraft] = useState<ShopFilters>(filters)
+  const [overlayOpen, setOverlayOpen] = useState(false)
+  const [queryDraft, setQueryDraft] = useState(filters.query)
+
+  useEffect(() => {
+    setDraft(filters)
+    setQueryDraft(filters.query)
+  }, [filters])
+
+  const pushFilters = useCallback(
+    (next: ShopFilters) => {
+      const params = searchParamsFromFilters(next)
+      const qs = params.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    },
+    [pathname, router]
+  )
+
+  const categoryFilters = [{ slug: 'all', name: 'All Specs' }].concat(
     categories.map((cat) => ({ slug: cat.slug, name: cat.short_name }))
   )
 
-  const searchParams = useSearchParams()
-  const urlCategory = searchParams.get('category')
+  const pieceTypes = useMemo(() => uniquePieceTypes(items), [items])
+  const materials = useMemo(() => uniqueMaterials(items), [items])
 
-  const [activeCategory, setActiveCategory] = useState(urlCategory || 'all')
-  const [searchQuery, setSearchQuery] = useState('')
+  const filteredItems = useMemo(
+    () => filterShopItems(items, categories, filters),
+    [items, categories, filters]
+  )
 
+  const detailCount = countActiveDetailFilters(filters)
+
+  const applyInlineQuery = (value: string) => {
+    setQueryDraft(value)
+    pushFilters({ ...filters, query: value })
+  }
+
+  const openOverlay = () => {
+    setDraft(filters)
+    setOverlayOpen(true)
+  }
+
+  const applyOverlay = () => {
+    pushFilters(draft)
+    setQueryDraft(draft.query)
+    setOverlayOpen(false)
+  }
+
+  const clearAll = () => {
+    pushFilters(EMPTY_SHOP_FILTERS)
+    setDraft(EMPTY_SHOP_FILTERS)
+    setQueryDraft('')
+    setOverlayOpen(false)
+  }
+
+  // Close overlay on Escape
   useEffect(() => {
-    if (urlCategory) setActiveCategory(urlCategory)
-  }, [urlCategory])
-
-  const filteredItems = items.filter((item) => {
-    const matchesCategory = activeCategory === 'all' || item.category === activeCategory
-    const terms = searchQuery
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(Boolean)
-
-    if (terms.length === 0) return matchesCategory
-
-    const haystack = [
-      item.title,
-      item.description ?? '',
-      item.category,
-      item.piece_type,
-      item.specs?.material ?? '',
-      item.specs?.weight ?? '',
-      item.specs?.size ?? '',
-      ...(item.tags ?? []),
-    ]
-      .join(' ')
-      .toLowerCase()
-
-    const matchesSearch = terms.every((term) => haystack.includes(term))
-    return matchesCategory && matchesSearch
-  })
+    if (!overlayOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOverlayOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [overlayOpen])
 
   return (
     <div className="min-h-screen bg-[#05070A] text-[#E0E6ED] font-sans antialiased selection:bg-[#14B8A6]/30 selection:text-[#CCFFFD]">
@@ -78,22 +122,25 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
         >
           Earthen Miners <span className="labradorite-teal">Designs</span>
         </Link>
-        <div className="flex gap-6 items-center">
+        <div className="flex gap-4 md:gap-6 items-center">
           <Link
             href="/"
-            className="text-xs tracking-[0.2em] uppercase font-bold text-[#B59A54] hover:text-white transition-colors"
+            className="text-[10px] md:text-xs tracking-[0.2em] uppercase font-bold bg-[#0A0C10] border border-[#B59A54] text-[#B59A54] hover:bg-[#B59A54] hover:text-black px-4 py-2.5 transition-colors"
           >
-            ← Home
+            ← Back to Homepage
+          </Link>
+          <Link
+            href="/contact"
+            className="text-xs tracking-[0.2em] uppercase font-bold text-[#71717A] hover:text-[#14B8A6] transition-colors"
+          >
+            Contact
           </Link>
           <Link
             href="/workbench"
-            className="text-xs tracking-[0.2em] uppercase font-bold text-[#71717A] hover:text-white transition-colors"
+            className="text-xs tracking-[0.2em] uppercase font-bold text-[#71717A] hover:text-white transition-colors hidden sm:inline"
           >
             Live Forge
           </Link>
-          <div className="text-xs tracking-[0.3em] uppercase font-bold metal-oxidized hidden md:block border-l border-white/10 pl-6">
-            Forged from earth & fire
-          </div>
         </div>
       </nav>
 
@@ -109,26 +156,46 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
             </p>
           </div>
 
-          <div className="w-full md:w-72 relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717A]">🔍</span>
-            <input
-              type="text"
-              placeholder="Search the vault..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#0A0C10] border border-[#27272A] p-4 pl-12 text-white focus:border-[#14B8A6] outline-none text-sm placeholder:text-[#71717A] transition-colors"
-            />
+          <div className="w-full md:w-auto flex gap-3 items-stretch">
+            <div className="relative flex-grow md:w-72">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717A]" aria-hidden>
+                <SearchIcon />
+              </span>
+              <input
+                type="search"
+                placeholder="Search the vault..."
+                value={queryDraft}
+                onChange={(e) => applyInlineQuery(e.target.value)}
+                className="w-full bg-[#0A0C10] border border-[#27272A] p-4 pl-12 text-white focus:border-[#14B8A6] outline-none text-sm placeholder:text-[#71717A] transition-colors"
+                aria-label="Search the vault"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={openOverlay}
+              className="relative shrink-0 w-14 border border-[#27272A] bg-[#0A0C10] text-[#14B8A6] hover:border-[#14B8A6] hover:bg-[#14B8A6]/10 transition-colors flex items-center justify-center"
+              aria-label="Open detailed search"
+              title="Detailed search"
+            >
+              <SlidersIcon />
+              {detailCount > 0 && (
+                <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#B59A54] text-black text-[10px] font-bold flex items-center justify-center">
+                  {detailCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-4 mb-16">
-          {filters.map((cat) => (
+        <div className="flex flex-wrap gap-4 mb-4">
+          {categoryFilters.map((cat) => (
             <button
               key={cat.slug}
-              onClick={() => setActiveCategory(cat.slug)}
+              type="button"
+              onClick={() => pushFilters({ ...filters, category: cat.slug })}
               className={`px-6 py-3 display-font tracking-widest text-sm transition-all duration-300 border
                         ${
-                          activeCategory === cat.slug
+                          filters.category === cat.slug
                             ? 'bg-[#14B8A6] text-black border-[#14B8A6] shadow-[0_0_15px_rgba(20,184,166,0.3)]'
                             : 'bg-[#0A0C10] text-[#71717A] border-[#27272A] hover:border-[#14B8A6] hover:text-white'
                         }
@@ -138,6 +205,27 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
             </button>
           ))}
         </div>
+
+        {(filters.query || detailCount > 0) && (
+          <div className="flex flex-wrap items-center gap-3 mb-12 text-[10px] uppercase tracking-widest font-bold text-[#71717A]">
+            <span>
+              Showing {filteredItems.length} of {items.length}
+            </span>
+            {filters.query && (
+              <span className="border border-[#27272A] px-3 py-1 text-[#A1A1AA]">
+                “{filters.query}”
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-[#14B8A6] border-b border-[#14B8A6]/30 hover:border-[#14B8A6] pb-0.5"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
+        {!(filters.query || detailCount > 0) && <div className="mb-12" />}
 
         {filteredItems.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
@@ -188,13 +276,27 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center gap-3">
                     <span className="text-2xl font-bold text-white display-font tracking-wider">
-                      ${item.price.toFixed(2)}
+                      {item.inquire_for_price
+                        ? 'Inquire'
+                        : `$${item.price.toFixed(2)}`}
                     </span>
-                    <button className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all">
-                      Acquire
-                    </button>
+                    {item.inquire_for_price ? (
+                      <Link
+                        href={`/contact?piece=${item.id}`}
+                        className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all"
+                      >
+                        Inquire for price
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all"
+                      >
+                        Acquire
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -208,10 +310,8 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
               Try adjusting your filters or searching for different specs.
             </p>
             <button
-              onClick={() => {
-                setActiveCategory('all')
-                setSearchQuery('')
-              }}
+              type="button"
+              onClick={clearAll}
               className="mt-6 text-[#14B8A6] text-xs uppercase tracking-widest font-bold border-b border-[#14B8A6]/30 pb-1 hover:border-[#14B8A6]"
             >
               Clear All Filters
@@ -227,6 +327,182 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
         </div>
         <p className="text-xs text-white/10 mt-2">Unapologetic Craft. No Molds. No Fluff.</p>
       </footer>
+
+      {overlayOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="vault-search-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70 backdrop-blur-md"
+            aria-label="Close detailed search"
+            onClick={() => setOverlayOpen(false)}
+          />
+          <div className="relative w-full sm:max-w-xl bg-[#0A0C10] border border-[#27272A] border-b-0 sm:border-b shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="absolute top-0 left-0 w-full h-1 bg-[#14B8A6]" />
+            <div className="p-6 md:p-8">
+              <div className="flex items-start justify-between gap-4 mb-8">
+                <div>
+                  <h2 id="vault-search-title" className="text-2xl display-font text-white">
+                    Detailed search
+                  </h2>
+                  <p className="text-[#71717A] text-sm mt-1">
+                    Narrow the vault by category, kind, material, and price.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOverlayOpen(false)}
+                  className="text-[#71717A] hover:text-white text-2xl leading-none px-2"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <label className="block">
+                  <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
+                    Keywords
+                  </span>
+                  <input
+                    type="search"
+                    value={draft.query}
+                    onChange={(e) => setDraft({ ...draft, query: e.target.value })}
+                    placeholder="Any word — title, tags, stone, size…"
+                    className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-4 text-white outline-none focus:border-[#B59A54]"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
+                    Category
+                  </span>
+                  <select
+                    value={draft.category}
+                    onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+                    className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-4 text-white outline-none focus:border-[#B59A54]"
+                  >
+                    <option value="all">All Specs</option>
+                    {categories.map((cat) => (
+                      <option key={cat.slug} value={cat.slug}>
+                        {cat.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
+                    Kind of piece
+                  </span>
+                  <select
+                    value={draft.pieceType}
+                    onChange={(e) => setDraft({ ...draft, pieceType: e.target.value })}
+                    className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-4 text-white outline-none focus:border-[#B59A54]"
+                  >
+                    <option value="">Any</option>
+                    {pieceTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
+                    Material
+                  </span>
+                  <select
+                    value={draft.material}
+                    onChange={(e) => setDraft({ ...draft, material: e.target.value })}
+                    className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-4 text-white outline-none focus:border-[#B59A54]"
+                  >
+                    <option value="">Any</option>
+                    {materials.map((mat) => (
+                      <option key={mat} value={mat}>
+                        {mat}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
+                      Min price
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={draft.minPrice}
+                      onChange={(e) => setDraft({ ...draft, minPrice: e.target.value })}
+                      placeholder="0"
+                      className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-4 text-white outline-none focus:border-[#B59A54]"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
+                      Max price
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={draft.maxPrice}
+                      onChange={(e) => setDraft({ ...draft, maxPrice: e.target.value })}
+                      placeholder="Any"
+                      className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-4 text-white outline-none focus:border-[#B59A54]"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 mt-10">
+                <button
+                  type="button"
+                  onClick={applyOverlay}
+                  className="flex-grow bg-[#14B8A6] text-black display-font tracking-widest py-4 hover:bg-white transition-colors"
+                >
+                  Show results
+                </button>
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="px-6 py-4 border border-[#27272A] text-[#71717A] text-[10px] font-bold tracking-widest uppercase hover:border-white hover:text-white"
+                >
+                  Clear all
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  )
+}
+
+function SearchIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3-3" />
+    </svg>
+  )
+}
+
+function SlidersIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3" />
+      <circle cx="4" cy="12" r="2" fill="currentColor" />
+      <circle cx="12" cy="10" r="2" fill="currentColor" />
+      <circle cx="20" cy="14" r="2" fill="currentColor" />
+    </svg>
   )
 }

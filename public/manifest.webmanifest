@@ -1,0 +1,19 @@
+{
+  "name": "Earthen Miners Admin",
+  "short_name": "EMD Admin",
+  "description": "Forge control panel for Earthen Miners Designs",
+  "start_url": "/admin",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#05070A",
+  "theme_color": "#05070A",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

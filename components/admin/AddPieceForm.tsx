@@ -1,23 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import Cropper, { Area } from 'react-easy-crop'
 import { createClient } from '@/lib/supabase/client'
 import { getCroppedImageBlob } from '@/lib/crop-image'
 import { CROP_ASPECT_OPTIONS } from '@/lib/crop-aspect'
-import { OTHER_CATEGORY, slugify } from '@/lib/categories'
+import { slugify } from '@/lib/categories'
 import { createCategory } from '@/lib/actions'
+import { assertPersistentImageUrls } from '@/lib/auth-session'
 import { SHOP_INVENTORY_BUCKET, uploadImageBlob } from '@/lib/upload-image'
+import {
+  computePriceBreakdown,
+  normalizeCategoryList,
+  parseMoneyInput,
+} from '@/lib/pricing'
+import PiecePricingFields, {
+  type PricingFormState,
+} from '@/components/admin/PiecePricingFields'
 import type { Category } from '@/lib/types'
 
 const supabase = createClient()
 
 type AddPieceFormProps = {
   categories: Category[]
+  spotPerOz: number | null
 }
 
-export default function AddPieceForm({ categories }: AddPieceFormProps) {
+export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProps) {
   const [categoryOptions, setCategoryOptions] = useState<Category[]>(categories)
   const [isSaving, setIsSaving] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -27,11 +37,10 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
 
   const [formData, setFormData] = useState({
     title: '',
-    category: '',
+    selectedCategories: [] as string[],
     customCategory: '',
     pieceType: '',
     customPieceType: '',
-    price: '',
     description: '',
     tags: '',
     photos: [''] as string[],
@@ -43,6 +52,15 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
     },
   })
 
+  const [pricing, setPricing] = useState<PricingFormState>({
+    materialCost: '',
+    workmanshipCost: '',
+    silverGrams: '',
+    inquireForPrice: false,
+  })
+
+  const [showOtherCategory, setShowOtherCategory] = useState(false)
+
   const [activeCropIndex, setActiveCropIndex] = useState<number | null>(null)
   const [imageSrc, setImageSrc] = useState<string | null>(null)
   const [crop, setCrop] = useState({ x: 0, y: 0 })
@@ -50,8 +68,19 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
   const [aspect, setAspect] = useState<number | undefined>(undefined)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
 
-  const isOtherCategory = formData.category === OTHER_CATEGORY
   const previewSlug = slugify(formData.customCategory)
+
+  const toggleCategory = (slug: string) => {
+    setFormData((prev) => {
+      const has = prev.selectedCategories.includes(slug)
+      return {
+        ...prev,
+        selectedCategories: has
+          ? prev.selectedCategories.filter((s) => s !== slug)
+          : [...prev.selectedCategories, slug],
+      }
+    })
+  }
 
   const handleFileClick = (index: number) => {
     setActiveCropIndex(index)
@@ -118,7 +147,6 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
     setFormData({ ...formData, photos: newPhotos })
   }
 
-  /** Create the typed-in category immediately so it joins the dropdown. */
   const handleAddCategory = async () => {
     setIsAddingCategory(true)
     setErrorMessage(null)
@@ -135,7 +163,14 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
     setCategoryOptions((prev) =>
       prev.some((c) => c.slug === result.category.slug) ? prev : [...prev, result.category]
     )
-    setFormData((prev) => ({ ...prev, category: result.category.slug, customCategory: '' }))
+    setFormData((prev) => ({
+      ...prev,
+      customCategory: '',
+      selectedCategories: prev.selectedCategories.includes(result.category.slug)
+        ? prev.selectedCategories
+        : [...prev.selectedCategories, result.category.slug],
+    }))
+    setShowOtherCategory(false)
     setStatusMessage(
       result.created
         ? `Category "${result.category.title}" created.`
@@ -143,6 +178,18 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
     )
     setIsAddingCategory(false)
   }
+
+  const resolvedPrice = useMemo(() => {
+    if (pricing.inquireForPrice) return 0
+    const material = parseMoneyInput(pricing.materialCost)
+    const work = parseMoneyInput(pricing.workmanshipCost)
+    const grams = parseMoneyInput(pricing.silverGrams)
+    if (material === null || work === null || grams === null || spotPerOz === null) return null
+    return computePriceBreakdown(
+      { materialCost: material, workmanshipCost: work, silverGrams: grams },
+      spotPerOz
+    ).total
+  }, [pricing, spotPerOz])
 
   const handleSubmit = async () => {
     setIsSaving(true)
@@ -156,25 +203,37 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
       return
     }
 
-    if (!formData.title.trim() || !formData.category || !formData.price) {
-      setErrorMessage('Title, category, and price are required.')
+    try {
+      assertPersistentImageUrls(finalPhotos)
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Invalid photo URLs.')
       setIsSaving(false)
       return
     }
 
-    // "Other" that was never explicitly added — create it now.
-    let categorySlug = formData.category
-    if (categorySlug === OTHER_CATEGORY) {
-      const result = await createCategory(formData.customCategory)
-      if (!result.ok) {
-        setErrorMessage(result.error)
+    if (!formData.title.trim() || formData.selectedCategories.length === 0) {
+      setErrorMessage('Title and at least one category are required.')
+      setIsSaving(false)
+      return
+    }
+
+    const material = parseMoneyInput(pricing.materialCost)
+    const work = parseMoneyInput(pricing.workmanshipCost)
+    const grams = parseMoneyInput(pricing.silverGrams)
+
+    if (!pricing.inquireForPrice) {
+      if (material === null || work === null || grams === null) {
+        setErrorMessage(
+          'Enter stone/material, workmanship, and silver grams — or check Inquire for price.'
+        )
         setIsSaving(false)
         return
       }
-      categorySlug = result.category.slug
-      setCategoryOptions((prev) =>
-        prev.some((c) => c.slug === result.category.slug) ? prev : [...prev, result.category]
-      )
+      if (resolvedPrice === null) {
+        setErrorMessage('Silver spot is unavailable — try again in a moment.')
+        setIsSaving(false)
+        return
+      }
     }
 
     const finalPieceType =
@@ -191,12 +250,22 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
       .map((tag) => tag.trim())
       .filter((tag) => tag !== '')
 
+    const categoriesList = normalizeCategoryList(
+      formData.selectedCategories[0],
+      formData.selectedCategories
+    )
+
     const { error } = await supabase.from('shop_inventory').insert([
       {
         title: formData.title.trim(),
-        category: categorySlug,
+        category: categoriesList[0],
+        categories: categoriesList,
         piece_type: finalPieceType,
-        price: parseFloat(formData.price),
+        price: pricing.inquireForPrice ? 0 : resolvedPrice!,
+        material_cost: material,
+        workmanship_cost: work,
+        silver_grams: grams,
+        inquire_for_price: pricing.inquireForPrice,
         photos: finalPhotos,
         description: formData.description,
         tags: tagArray,
@@ -206,22 +275,12 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
 
     if (error) {
       setErrorMessage('Error adding to Vault: ' + error.message)
-    } else {
-      setStatusMessage('Piece secured in Vault with Storage image URLs.')
-      setFormData({
-        title: '',
-        category: '',
-        customCategory: '',
-        pieceType: '',
-        customPieceType: '',
-        price: '',
-        description: '',
-        tags: '',
-        photos: [''],
-        specs: { weight: '', size: '', width: '', material: '' },
-      })
+      setIsSaving(false)
+      return
     }
-    setIsSaving(false)
+
+    setStatusMessage('Piece secured — opening category editor…')
+    window.location.href = `/admin/homepage/categories/${categoriesList[0]}`
   }
 
   return (
@@ -342,98 +401,100 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
           <div className="absolute top-0 left-0 w-1 h-full bg-[#14B8A6]"></div>
           <h2 className="text-2xl display-font mb-6 text-white">1. Classification</h2>
 
-          <div className="grid md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
-                Item Title
-              </label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full bg-[#05070A] border border-[#27272A] p-4 text-white focus:border-[#B59A54] outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
-                Price ($)
-              </label>
-              <input
-                type="number"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                className="w-full bg-[#05070A] border border-[#27272A] p-4 text-white focus:border-[#B59A54] outline-none"
-              />
-            </div>
+          <div className="mb-6">
+            <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
+              Item Title
+            </label>
+            <input
+              type="text"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              className="w-full bg-[#05070A] border border-[#27272A] p-4 text-white focus:border-[#B59A54] outline-none"
+            />
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
-                Category (Filters the Shop)
-              </label>
-              <select
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full bg-[#05070A] border border-[#27272A] p-4 text-white focus:border-[#B59A54] outline-none"
-              >
-                <option value="">-- Select Category --</option>
-                {categoryOptions.map((cat) => (
-                  <option key={cat.slug} value={cat.slug}>
-                    {cat.title}
-                  </option>
-                ))}
-                <option value={OTHER_CATEGORY}>Other (Specify)</option>
-              </select>
+          <div className="mb-6">
+            <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-3">
+              Categories (select one or more)
+            </label>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {categoryOptions.map((cat) => {
+                const checked = formData.selectedCategories.includes(cat.slug)
+                return (
+                  <label
+                    key={cat.slug}
+                    className={`flex items-center gap-3 border p-3 cursor-pointer transition-colors ${
+                      checked
+                        ? 'border-[#14B8A6] bg-[#14B8A6]/10'
+                        : 'border-[#27272A] bg-[#05070A] hover:border-[#14B8A6]/40'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleCategory(cat.slug)}
+                      className="accent-[#14B8A6]"
+                    />
+                    <span className="text-sm text-white">{cat.title}</span>
+                  </label>
+                )
+              })}
             </div>
-            <div>
-              <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
-                Kind of Piece
-              </label>
-              <select
-                value={formData.pieceType}
-                onChange={(e) => setFormData({ ...formData, pieceType: e.target.value })}
-                className="w-full bg-[#05070A] border border-[#27272A] p-4 text-white focus:border-[#B59A54] outline-none"
-              >
-                <option value="">-- Select Kind --</option>
-                <option value="Ring">Ring</option>
-                <option value="Pendant">Pendant</option>
-                <option value="Cuff">Cuff / Bracelet</option>
-                <option value="Earrings">Earrings</option>
-                <option value="Other">Other (Specify)</option>
-              </select>
-            </div>
-          </div>
-
-          {isOtherCategory && (
-            <div className="mt-6 border border-[#14B8A6]/30 bg-[#05070A] p-6">
-              <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
-                New Category Name
-              </label>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="text"
-                  value={formData.customCategory}
-                  onChange={(e) => setFormData({ ...formData, customCategory: e.target.value })}
-                  className="flex-grow bg-[#0A0C10] border border-[#27272A] p-4 text-white focus:border-[#B59A54] outline-none"
-                  placeholder="e.g. Bolo Ties"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddCategory}
-                  disabled={isAddingCategory || !previewSlug}
-                  className="px-6 py-4 bg-[#14B8A6] text-black uppercase text-[10px] font-bold tracking-widest disabled:opacity-50 whitespace-nowrap"
-                >
-                  {isAddingCategory ? 'Adding…' : '+ Add Category'}
-                </button>
+            <button
+              type="button"
+              onClick={() => setShowOtherCategory((v) => !v)}
+              className="mt-3 text-[10px] font-bold tracking-widest uppercase text-[#14B8A6] hover:text-white"
+            >
+              {showOtherCategory ? '− Hide new category' : '+ Add new category'}
+            </button>
+            {showOtherCategory && (
+              <div className="mt-4 border border-[#14B8A6]/30 bg-[#05070A] p-6">
+                <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
+                  New Category Name
+                </label>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    value={formData.customCategory}
+                    onChange={(e) => setFormData({ ...formData, customCategory: e.target.value })}
+                    className="flex-grow bg-[#0A0C10] border border-[#27272A] p-4 text-white focus:border-[#B59A54] outline-none"
+                    placeholder="e.g. Bolo Ties"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCategory}
+                    disabled={isAddingCategory || !previewSlug}
+                    className="px-6 py-4 bg-[#14B8A6] text-black uppercase text-[10px] font-bold tracking-widest disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {isAddingCategory ? 'Adding…' : '+ Add Category'}
+                  </button>
+                </div>
+                <p className="text-[#71717A] text-[10px] mt-3 font-mono">
+                  {previewSlug
+                    ? `Saves as slug: ${previewSlug}`
+                    : 'Type a name to generate its shop filter slug.'}
+                </p>
               </div>
-              <p className="text-[#71717A] text-[10px] mt-3 font-mono">
-                {previewSlug
-                  ? `Saves as slug: ${previewSlug} — appears on the homepage and shop filters.`
-                  : 'Type a name to generate its shop filter slug.'}
-              </p>
-            </div>
-          )}
+            )}
+          </div>
+
+          <div>
+            <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
+              Kind of Piece
+            </label>
+            <select
+              value={formData.pieceType}
+              onChange={(e) => setFormData({ ...formData, pieceType: e.target.value })}
+              className="w-full bg-[#05070A] border border-[#27272A] p-4 text-white focus:border-[#B59A54] outline-none"
+            >
+              <option value="">-- Select Kind --</option>
+              <option value="Ring">Ring</option>
+              <option value="Pendant">Pendant</option>
+              <option value="Cuff">Cuff / Bracelet</option>
+              <option value="Earrings">Earrings</option>
+              <option value="Other">Other (Specify)</option>
+            </select>
+          </div>
 
           {formData.pieceType === 'Other' && (
             <div className="mt-6">
@@ -453,7 +514,12 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
 
         <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-[#B59A54]"></div>
-          <h2 className="text-2xl display-font mb-6 text-white">2. Specs & SEO</h2>
+          <PiecePricingFields value={pricing} onChange={setPricing} spotPerOz={spotPerOz} />
+        </div>
+
+        <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-[#B59A54]"></div>
+          <h2 className="text-2xl display-font mb-6 text-white">3. Specs & SEO</h2>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div>
@@ -547,7 +613,7 @@ export default function AddPieceForm({ categories }: AddPieceFormProps) {
         <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-[#00F2FE]"></div>
           <div className="flex justify-between items-end mb-6">
-            <h2 className="text-2xl display-font text-white">3. Visuals</h2>
+            <h2 className="text-2xl display-font text-white">4. Visuals</h2>
             <span className="text-[#71717A] text-xs font-bold">
               {formData.photos.filter((p) => p !== '').length} / 5 Loaded
             </span>

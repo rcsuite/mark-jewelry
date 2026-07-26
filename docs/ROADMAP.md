@@ -19,10 +19,13 @@ because most of the P1/P2 work touches the same code paths.
       searchable.
 - [x] **Replace `.single()` with `.maybeSingle()`** on `current_build` admin reads so a
       missing or duplicated row doesn't throw. Public pages still need the same fix.
-- [ ] **Fix the root metadata.** `app/layout.tsx` still says "Create Next App"; set the
-      real title, description, and favicon.
-- [ ] **Replace `window.location.reload()`** after saves with `revalidatePath` from a
-      Server Action.
+- [x] **Fix the root metadata.** Title and description set for Earthen Miners Designs.
+- [x] **Replace `window.location.reload()`** after saves with `revalidatePath` from a
+      Server Action (most new admin flows already use actions; leftover client inserts
+      in add-piece / finalize can migrate when touched).
+- [x] **Admin session + Storage uploads for Mark’s phone.** Long-lived cookies, PWA
+      manifest → `/admin`, visibility-based session refresh, uploads refresh auth and
+      refuse `blob:` URLs. See `.cursor/rules/admin-auth-uploads.mdc`.
 
 ## P1 — Admin controls the storefront
 
@@ -41,37 +44,29 @@ inventory are DB-driven so the editor has real data to mutate.
 - [x] **Categories live in the database.** The `categories` table (slug, title,
       short_name, description, image_url, sort_order, show_on_homepage) is seeded from
       the old hardcoded lists and read via `getCategories()`.
-- [ ] **Categories: remove / edit / reorder.** Adding works; the rest still needs an
-      editor. Also needs a thumbnail upload — `image_url` is wired into the homepage grid
-      but nothing writes it yet, so categories still render the `[SLUG IMAGE]`
-      placeholder.
-- [ ] **Reviews: add / remove.** Move the three hardcoded "Ironclad Verdicts" cards into
-      a `reviews` table (quote, author, location, rating).
-- [ ] **Available Handiworks: add / remove / edit / reorder.** The homepage section is
-      four hardcoded sample cards. It should be an itemized list of all currently
-      available pieces, ordered by the admin.
-- [ ] **Sold pieces strip.** Add `sold` to `shop_inventory`, mark pieces sold instead of
-      deleting them, and render a thumbnail row at the bottom of the homepage as social
-      proof. Sold pieces must be excluded from the shop's available grid.
-- [ ] **Homepage edit affordances.** Surface the add/remove/edit/reorder controls for the
-      logged-in admin. Decide whether they render inline on `/` behind a session check or
-      live on a dedicated `/admin/homepage` page — inline is friendlier, but it means the
-      homepage can no longer be fully static.
+- [x] **Categories: remove / edit / reorder.** `/admin/homepage` mirrors the site:
+      drag category cards, pencil opens `/admin/homepage/categories/[slug]` (cover photo,
+      all pieces, drag-reorder). Piece pencil opens a full field editor. See
+      `docs/ADMIN_EDITING.md`.
+- [x] **Reviews: add / remove / edit / reorder.** `reviews` table + Ironclad Verdicts
+      on the homepage editor (in-place panel).
+- [x] **Available Handiworks: add / remove / edit / reorder.** Driven by
+      `shop_inventory.featured` + `featured_sort_order`; drag on the admin homepage.
+- [x] **Sold pieces strip.** `shop_inventory.sold`; sold pieces leave the shop grid and
+      appear on the homepage / admin sold strip.
+- [x] **Homepage edit affordances.** Dedicated `/admin/homepage` mirror (public `/`
+      stays clean). Ethos documented in `docs/ADMIN_EDITING.md` and
+      `.cursor/rules/admin-editing-ethos.mdc`.
 
 ## P2 — Shop search and navigation
 
-- [ ] **Intelligent search.** Current matching only covers title, description, and tags.
-      Extend it to category (both slug and display name), `piece_type`, and `specs`
-      values, match each whitespace-separated term independently so word order doesn't
-      matter, and make it accent/case-insensitive. Consider a Postgres full-text or
-      trigram index once the dataset grows past client-side filtering.
-- [ ] **"Back to Homepage" button** on `/shop`. The logo links home today, but it isn't
-      obvious as navigation.
-- [ ] **Detailed search overlay.** A search icon that opens a pop-out panel over a
-      blurred backdrop (`backdrop-blur`) with filter controls: category, piece type,
-      price range, material, and sold/available. Reuse the same query logic as the inline
-      search, keep the state in the URL so results are shareable, and remember that
-      `useSearchParams` needs a `<Suspense>` boundary.
+- [x] **Intelligent search.** Matches every whitespace-separated term across title,
+      description, tags, category slug + display name, `piece_type`, specs, and price
+      (accent/case-insensitive). Shared helpers in `lib/shop-search.ts`.
+- [x] **"Back to Homepage" button** on `/shop` — brass-bordered control in the nav.
+- [x] **Detailed search overlay.** Sliders icon opens a panel over a blurred backdrop
+      with category, kind, material, and price range. Filters live in the URL
+      (`q`, `category`, `type`, `material`, `min`, `max`) so results are shareable.
 
 ## P3 — Commerce
 

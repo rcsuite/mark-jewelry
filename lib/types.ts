@@ -8,14 +8,28 @@ export type PieceSpecs = {
 export type ShopPiece = {
   id: string
   title: string
+  /** Primary category (first of `categories`); kept for older queries. */
   category: string
+  /** All categories this piece appears under. */
+  categories: string[]
   piece_type: string
   price: number
+  /** Stone / other material cost (USD). */
+  material_cost: number | null
+  /** Labor / workmanship (USD). */
+  workmanship_cost: number | null
+  /** Fine silver weight used in the formula (grams). */
+  silver_grams: number | null
+  inquire_for_price: boolean
   photos: string[]
   description: string | null
   tags: string[] | null
   specs: PieceSpecs | null
   created_at: string | null
+  sold: boolean
+  sort_order: number
+  featured: boolean
+  featured_sort_order: number
 }
 
 export type VideoSession = {
@@ -49,4 +63,13 @@ export type Category = {
   image_url: string | null
   sort_order: number
   show_on_homepage: boolean
+}
+
+export type Review = {
+  id: string
+  quote: string
+  author: string
+  location: string
+  rating: number
+  sort_order: number
 }

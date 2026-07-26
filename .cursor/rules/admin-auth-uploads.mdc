@@ -1,0 +1,54 @@
+---
+description: Long-lived admin sessions, PWA homescreen, and Storage upload auth
+alwaysApply: true
+---
+
+# Admin auth, sessions, and image uploads
+
+Mark uses this as a **homescreen app**: open `/admin`, stay signed in, upload photos.
+Design every auth and upload change for that workflow.
+
+## Sessions should feel permanent
+
+- Refresh tokens last indefinitely by default in Supabase. **Do not enable** Auth
+  inactivity timeout or time-boxed sessions in the dashboard unless Mark asks to
+  re-login periodically.
+- Auth cookies use a long `maxAge` (~400 days) via `lib/supabase/cookie-options.ts`.
+  Keep that on browser client, server client, and `proxy.ts`.
+- `AuthSessionKeeper` on `/admin/*` refreshes the session when the app becomes
+  visible again (phones throttle background timers).
+- Access JWTs still expire (~1h). That is fine — the client must refresh before
+  Storage calls. Never lengthen JWTs to “fix” uploads.
+
+## Why Mark saw `blob:` URLs
+
+`blob:` URLs are **temporary browser previews** from `URL.createObjectURL`. They are
+not in Supabase Storage. They die when the tab closes.
+
+Uploads to `forge-images` / `shop-inventory` require an **authenticated** session
+(Storage RLS). If the JWT is stale and refresh fails, the upload fails. Older code
+(or a failed upload path) could leave a preview URL in the form and save it to the
+row — that must never happen again.
+
+## Upload rules (non-negotiable)
+
+1. Crop → `getCroppedImageBlob` → `uploadImageBlob` → save **only** the returned
+   `https://…supabase…/storage/…` URL.
+2. `uploadImageBlob` must call `ensureAuthenticatedSession` first.
+3. Before any `shop_inventory` / category image write, call
+   `assertPersistentImageUrls` — reject `blob:` and `data:`.
+4. On auth failure, show a clear “sign in again at /login” message — never silently
+   keep a preview URL.
+
+## Homescreen / PWA
+
+- `public/manifest.webmanifest` starts at `/admin`.
+- After deploy, Mark should: open site in Safari/Chrome → log in once → Add to
+  Home Screen → launch from icon. If uploads fail, use **Sign out** (top of every
+  admin page), log in once more, then retry. **Sign out everywhere** kills all
+  devices at once.
+
+## Dashboard check (human)
+
+Supabase → Authentication → Sessions: inactivity timeout and time-box should be
+**off** for this one-artisan admin.

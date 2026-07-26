@@ -36,15 +36,19 @@ Writing a scalar `primary_image` instead produces a listing with no image.
 ## Uploads must persist to Supabase Storage
 
 `URL.createObjectURL(file)` returns a blob URL scoped to the current tab. It dies on
-reload, so it must never be saved to the database.
+reload, so it must never be saved to the database. Storage uploads also require an
+**authenticated** session — refresh auth before upload (`ensureAuthenticatedSession`)
+and reject any `blob:` / `data:` URL with `assertPersistentImageUrls` before writing
+a row. See `.cursor/rules/admin-auth-uploads.mdc`.
 
 ```ts
-// ❌ BAD — currently in add-piece and current-project
-const mockUploadedUrl = imageSrc
+// ❌ BAD — preview URL or skipped upload
+const mockUploadedUrl = imageSrc // blob:...
 
 // ✅ GOOD
-const { data } = await supabase.storage.from('pieces').upload(path, croppedBlob)
-const url = supabase.storage.from('pieces').getPublicUrl(data.path).data.publicUrl
+await ensureAuthenticatedSession(supabase)
+const url = await uploadImageBlob(supabase, bucket, folder, croppedBlob)
+assertPersistentImageUrls([url])
 ```
 
 Upload the **cropped** output from `react-easy-crop`, not the original file. A

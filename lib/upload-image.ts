@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { ensureAuthenticatedSession, isPersistentImageUrl } from '@/lib/auth-session'
 
 export const FORGE_IMAGES_BUCKET = 'forge-images'
 export const SHOP_INVENTORY_BUCKET = 'shop-inventory'
@@ -10,7 +11,10 @@ function extensionForMime(mimeType: string): string {
   return 'jpg'
 }
 
-/** Upload a cropped image blob and return its public Storage URL. */
+/**
+ * Upload a cropped image blob and return its public Storage URL.
+ * Refreshes the auth session first — Storage RLS requires `authenticated`.
+ */
 export async function uploadImageBlob(
   supabase: SupabaseClient,
   bucket: string,
@@ -18,6 +22,12 @@ export async function uploadImageBlob(
   blob: Blob,
   fileStem?: string
 ): Promise<string> {
+  await ensureAuthenticatedSession(supabase)
+
+  if (!(blob instanceof Blob) || blob.size === 0) {
+    throw new Error('Crop produced an empty image. Try again.')
+  }
+
   const ext = extensionForMime(blob.type || 'image/jpeg')
   const stem = fileStem ?? `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`
   const path = `${folder.replace(/\/$/, '')}/${stem}.${ext}`
@@ -29,9 +39,19 @@ export async function uploadImageBlob(
   })
 
   if (error) {
-    throw new Error(error.message)
+    const hint =
+      /row-level security|not authenticated|jwt|unauthorized/i.test(error.message)
+        ? ' Sign in again at /login — the upload needs an active admin session.'
+        : ''
+    throw new Error(`Storage upload failed: ${error.message}.${hint}`)
   }
 
   const { data } = supabase.storage.from(bucket).getPublicUrl(path)
-  return data.publicUrl
+  const publicUrl = data.publicUrl
+
+  if (!isPersistentImageUrl(publicUrl)) {
+    throw new Error('Upload returned an invalid URL. Nothing was saved — try again.')
+  }
+
+  return publicUrl
 }

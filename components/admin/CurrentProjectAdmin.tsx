@@ -8,6 +8,7 @@ import { CROP_ASPECT_OPTIONS } from '@/lib/crop-aspect'
 import { OTHER_CATEGORY, slugify } from '@/lib/categories'
 import { createCategory } from '@/lib/actions'
 import { FORGE_IMAGES_BUCKET, uploadImageBlob } from '@/lib/upload-image'
+import { assertPersistentImageUrls } from '@/lib/auth-session'
 import type { Category, CurrentBuild, VideoSession } from '@/lib/types'
 
 const supabase = createClient()
@@ -234,6 +235,14 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
       return
     }
 
+    try {
+      assertPersistentImageUrls(photos)
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Invalid photo URLs.')
+      setIsSaving(false)
+      return
+    }
+
     if (!listingData.title.trim() || !listingData.category || !listingData.price) {
       setErrorMessage('Title, category, and price are required to finalize.')
       setIsSaving(false)
@@ -265,6 +274,7 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
       {
         title: listingData.title.trim(),
         category: categorySlug,
+        categories: [categorySlug],
         piece_type: pieceType,
         price: parseFloat(listingData.price),
         photos,
