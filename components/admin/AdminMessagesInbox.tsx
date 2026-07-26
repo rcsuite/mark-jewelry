@@ -6,6 +6,7 @@ import {
   getAdminThread,
   listChatThreads,
   sendMarkReply,
+  touchMarkPresence,
 } from '@/lib/chat-actions'
 import type { ChatMessage, ChatThreadSummary } from '@/lib/chat-types'
 
@@ -22,6 +23,26 @@ export default function AdminMessagesInbox({
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const bottomRef = useRef<HTMLDivElement>(null)
+  const lastPresenceRef = useRef(0)
+
+  const pulsePresence = () => {
+    const now = Date.now()
+    if (now - lastPresenceRef.current < 10000) return
+    lastPresenceRef.current = now
+    void touchMarkPresence()
+  }
+
+  useEffect(() => {
+    void touchMarkPresence()
+    const onActivity = () => pulsePresence()
+    window.addEventListener('keydown', onActivity)
+    window.addEventListener('pointerdown', onActivity)
+    return () => {
+      window.removeEventListener('keydown', onActivity)
+      window.removeEventListener('pointerdown', onActivity)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const loadThread = (id: string) => {
     startTransition(async () => {
@@ -131,7 +152,7 @@ export default function AdminMessagesInbox({
                     )}
                   </div>
                   <p className="text-[10px] text-[#71717A] truncate mt-0.5">
-                    {t.piece_title || t.visitor_email}
+                    {t.viewing_context || t.piece_title || t.visitor_email}
                   </p>
                 </button>
               ))
@@ -145,9 +166,13 @@ export default function AdminMessagesInbox({
                   <p className="display-font text-lg">{active.visitor_name}</p>
                   <p className="text-[10px] text-[#71717A] uppercase tracking-widest">
                     {active.visitor_email}
-                    {active.piece_title ? ` · ${active.piece_title}` : ''}
                     {active.mode === 'email_only' ? ' · email' : ' · live'}
                   </p>
+                  {(active.viewing_context || active.piece_title) && (
+                    <p className="text-xs text-[#B59A54] mt-2">
+                      Inquired while viewing “{active.viewing_context || active.piece_title}”
+                    </p>
+                  )}
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                   {messages.map((m) => (
@@ -167,8 +192,12 @@ export default function AdminMessagesInbox({
                 <div className="p-3 border-t border-[#27272A] flex gap-2">
                   <input
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
+                    onChange={(e) => {
+                      setDraft(e.target.value)
+                      pulsePresence()
+                    }}
                     onKeyDown={(e) => {
+                      pulsePresence()
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault()
                         reply()

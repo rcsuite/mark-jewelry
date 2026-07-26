@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import ContactTrigger from '@/components/chat/ContactTrigger'
 import type { Category, ShopPiece } from '@/lib/types'
 import {
   EMPTY_SHOP_FILTERS,
@@ -129,11 +130,14 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
           >
             ← Back to Homepage
           </Link>
-          <Link
-            href="/contact"
-            className="text-xs tracking-[0.2em] uppercase font-bold text-[#71717A] hover:text-[#14B8A6] transition-colors"
-          >
+          <ContactTrigger className="text-xs tracking-[0.2em] uppercase font-bold text-[#71717A] hover:text-[#14B8A6] transition-colors">
             Contact
+          </ContactTrigger>
+          <Link
+            href="/mark"
+            className="text-xs tracking-[0.2em] uppercase font-bold text-[#71717A] hover:text-[#14B8A6] transition-colors hidden sm:inline"
+          >
+            Know Mark
           </Link>
           <Link
             href="/workbench"
@@ -283,12 +287,13 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
                         : `$${item.price.toFixed(2)}`}
                     </span>
                     {item.inquire_for_price ? (
-                      <Link
-                        href={`/contact?piece=${item.id}`}
+                      <ContactTrigger
+                        pieceId={item.id}
+                        pieceTitle={item.title}
                         className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all"
                       >
                         Inquire for price
-                      </Link>
+                      </ContactTrigger>
                     ) : (
                       <button
                         type="button"

@@ -6,7 +6,6 @@ import type { Category, ShopPiece } from '@/lib/types'
 import type { SilverQuote } from '@/lib/silver'
 import { matchesQuery, pieceSearchHaystack } from '@/lib/shop-search'
 import { piecePriceLabel } from '@/lib/pricing'
-import SilverSpotPanel from '@/components/admin/SilverSpotPanel'
 
 type Props = {
   pieces: ShopPiece[]
@@ -40,27 +39,14 @@ export default function AdminHub({ pieces, categories, silver }: Props) {
       />
 
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-10">
-        <header className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-wider display-font">
-              EARTHEN MINERS <span className="text-[#14B8A6]">DESIGNS</span>
-            </h1>
-            <p className="text-[#71717A] text-[10px] font-bold uppercase tracking-[0.2em] mt-1">
-              Admin · find a piece fast
-            </p>
-          </div>
-          <Link
-            href="/"
-            className="self-start sm:self-auto bg-[#0A0C10] border border-[#27272A] hover:border-[#14B8A6] text-[#A1A1AA] hover:text-white px-4 py-2.5 rounded-sm text-[10px] font-bold uppercase tracking-widest transition-colors"
-          >
-            &larr; Public site
-          </Link>
+        <header className="mb-6">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-wider display-font">
+            EARTHEN MINERS <span className="text-[#14B8A6]">DESIGNS</span>
+          </h1>
+          <p className="text-[#71717A] text-[10px] font-bold uppercase tracking-[0.2em] mt-1">
+            Admin · find a piece fast
+          </p>
         </header>
-
-        {/* Phone-first: silver on the left / top, then search */}
-        <div className="mb-5">
-          <SilverSpotPanel quote={silver} />
-        </div>
 
         <div className="mb-4">
           <label htmlFor="admin-piece-search" className="sr-only">
@@ -182,6 +168,17 @@ export default function AdminHub({ pieces, categories, silver }: Props) {
                 </h2>
                 <p className="text-[#71717A] text-[10px] tracking-widest uppercase mt-2 font-bold">
                   Live chats from the site
+                </p>
+              </Link>
+              <Link
+                href="/admin/mark"
+                className="bg-[#0A0C10] border border-[#27272A] hover:border-[#B59A54] p-6 rounded-sm transition-colors group sm:col-span-2"
+              >
+                <h2 className="text-lg display-font group-hover:text-[#B59A54] transition-colors">
+                  Know Mark
+                </h2>
+                <p className="text-[#71717A] text-[10px] tracking-widest uppercase mt-2 font-bold">
+                  Hobbies & life photos — fishing, family, off the bench
                 </p>
               </Link>
             </div>

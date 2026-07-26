@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { slugify } from '@/lib/categories'
-import { toCategory, toReview, normalizePiece } from '@/lib/queries'
+import { toCategory, toReview, toMarkMoment, normalizePiece } from '@/lib/queries'
 import { assertPersistentImageUrls } from '@/lib/auth-session'
 import {
   computePriceBreakdown,
@@ -12,7 +12,7 @@ import {
   withLivePrice,
 } from '@/lib/pricing'
 import { getSilverSpotPerOz } from '@/lib/silver'
-import type { Category, Review, ShopPiece } from '@/lib/types'
+import type { Category, MarkMoment, Review, ShopPiece } from '@/lib/types'
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string }
 
@@ -28,8 +28,11 @@ async function requireUser() {
 function revalidateStorefront() {
   revalidatePath('/')
   revalidatePath('/shop')
+  revalidatePath('/mark')
+  revalidatePath('/contact')
   revalidatePath('/admin')
   revalidatePath('/admin/homepage')
+  revalidatePath('/admin/mark')
   revalidatePath('/admin/add-piece')
   revalidatePath('/admin/current-project')
 }
@@ -483,6 +486,82 @@ export async function deleteReview(id: string): Promise<ActionResult> {
   if (!user) return { ok: false, error: 'Unauthorized.' }
 
   const { error } = await supabase.from('reviews').delete().eq('id', id)
+  if (error) return { ok: false, error: error.message }
+
+  revalidateStorefront()
+  return { ok: true }
+}
+
+export async function reorderMarkMoments(orderedIds: string[]): Promise<ActionResult> {
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: 'Unauthorized.' }
+
+  const updates = orderedIds.map((id, index) =>
+    supabase.from('mark_moments').update({ sort_order: (index + 1) * 10 }).eq('id', id)
+  )
+  const results = await Promise.all(updates)
+  const failed = results.find((r) => r.error)
+  if (failed?.error) return { ok: false, error: failed.error.message }
+
+  revalidateStorefront()
+  return { ok: true }
+}
+
+export async function upsertMarkMoment(input: {
+  id?: string
+  image_url: string
+  caption: string
+}): Promise<ActionResult<MarkMoment>> {
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: 'Unauthorized.' }
+
+  try {
+    assertPersistentImageUrls([input.image_url])
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Invalid image URL.' }
+  }
+
+  const caption = input.caption.trim()
+
+  if (input.id) {
+    const { data, error } = await supabase
+      .from('mark_moments')
+      .update({ image_url: input.image_url, caption })
+      .eq('id', input.id)
+      .select('*')
+      .single()
+    if (error) return { ok: false, error: error.message }
+    revalidateStorefront()
+    return { ok: true, data: toMarkMoment(data as Record<string, unknown>) }
+  }
+
+  const { data: maxRow } = await supabase
+    .from('mark_moments')
+    .select('sort_order')
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { data, error } = await supabase
+    .from('mark_moments')
+    .insert({
+      image_url: input.image_url,
+      caption,
+      sort_order: Number(maxRow?.sort_order ?? 0) + 10,
+    })
+    .select('*')
+    .single()
+
+  if (error) return { ok: false, error: error.message }
+  revalidateStorefront()
+  return { ok: true, data: toMarkMoment(data as Record<string, unknown>) }
+}
+
+export async function deleteMarkMoment(id: string): Promise<ActionResult> {
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: 'Unauthorized.' }
+
+  const { error } = await supabase.from('mark_moments').delete().eq('id', id)
   if (error) return { ok: false, error: error.message }
 
   revalidateStorefront()

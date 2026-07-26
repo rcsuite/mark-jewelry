@@ -108,6 +108,7 @@ export async function startChat(input: {
   message?: string
   pieceId?: string | null
   pieceTitle?: string | null
+  viewingContext?: string | null
 }): Promise<
   ActionResult<{
     mode: 'live' | 'email_only'
@@ -122,6 +123,7 @@ export async function startChat(input: {
     p_piece_id: input.pieceId || null,
     p_piece_title: input.pieceTitle || null,
     p_mode: input.mode,
+    p_viewing_context: input.viewingContext || input.pieceTitle || null,
   })
 
   if (error) return { ok: false, error: error.message }
@@ -192,8 +194,10 @@ export async function fetchVisitorChat(): Promise<
       visitor_email: string
       piece_id: string | null
       piece_title: string | null
+      viewing_context?: string | null
     }
     messages: ChatMessage[]
+    markIsAway: boolean
   } | null>
 > {
   const { sessionId, token } = await getChatCookiePair()
@@ -209,12 +213,14 @@ export async function fetchVisitorChat(): Promise<
   const payload = data as {
     ok?: boolean
     error?: string
+    mark_is_away?: boolean
     thread?: {
       id: string
       visitor_name: string
       visitor_email: string
       piece_id: string | null
       piece_title: string | null
+      viewing_context?: string | null
     }
     messages?: ChatMessage[]
   }
@@ -228,6 +234,7 @@ export async function fetchVisitorChat(): Promise<
     data: {
       thread: payload.thread!,
       messages: payload.messages ?? [],
+      markIsAway: Boolean(payload.mark_is_away),
     },
   }
 }
@@ -289,7 +296,7 @@ export async function listChatThreads(): Promise<ActionResult<ChatThreadSummary[
   const { data, error } = await supabase
     .from('chat_threads')
     .select(
-      'id, visitor_name, visitor_email, piece_id, piece_title, mode, last_message_at, unread_for_mark, created_at'
+      'id, visitor_name, visitor_email, piece_id, piece_title, viewing_context, mode, last_message_at, unread_for_mark, created_at'
     )
     .order('last_message_at', { ascending: false })
 
@@ -309,7 +316,7 @@ export async function getAdminThread(threadId: string): Promise<
   const { data: thread, error } = await supabase
     .from('chat_threads')
     .select(
-      'id, visitor_name, visitor_email, piece_id, piece_title, mode, last_message_at, unread_for_mark, created_at'
+      'id, visitor_name, visitor_email, piece_id, piece_title, viewing_context, mode, last_message_at, unread_for_mark, created_at'
     )
     .eq('id', threadId)
     .maybeSingle()
@@ -378,4 +385,20 @@ export async function countUnreadForMark(): Promise<number> {
   if (!user) return 0
   const { data } = await supabase.from('chat_threads').select('unread_for_mark')
   return (data ?? []).reduce((sum, row) => sum + Number(row.unread_for_mark ?? 0), 0)
+}
+
+/**
+ * Mark is at the keyboard — call from Messages UI on keystroke (throttled).
+ * Visitors learn “away” from the existing chat_fetch poll (no extra client calls).
+ */
+export async function touchMarkPresence(): Promise<ActionResult> {
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: 'Unauthorized.' }
+
+  const { error } = await supabase.from('mark_presence').upsert({
+    id: 1,
+    last_active_at: new Date().toISOString(),
+  })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
 }

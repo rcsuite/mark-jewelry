@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import ContactTrigger from '@/components/chat/ContactTrigger'
 import type { Category, CurrentBuild, HeroSlide, Review, ShopPiece } from '@/lib/types'
 
 type HomePageProps = {
@@ -78,14 +79,14 @@ export default function HomePage({
             Shop
           </Link>
           <Link
-            href="/contact"
+            href="/mark"
             className="text-xs tracking-[0.2em] uppercase font-bold text-[#A1A1AA] hover:text-[#14B8A6]"
           >
-            Contact
+            Know Mark
           </Link>
-          <div className="text-xs tracking-[0.3em] uppercase font-bold metal-oxidized hidden md:block">
-            Forged from earth & fire • USA
-          </div>
+          <ContactTrigger className="text-xs tracking-[0.2em] uppercase font-bold text-[#A1A1AA] hover:text-[#14B8A6]">
+            Contact
+          </ContactTrigger>
         </div>
       </nav>
 
@@ -350,13 +351,13 @@ export default function HomePage({
           EARTHEN MINERS <span className="labradorite-teal">DESIGNS</span> &copy;{' '}
           {new Date().getFullYear()}
         </div>
+        <p className="text-xs text-white/20 mt-2 tracking-[0.15em] uppercase">
+          Forged from earth & fire · USA
+        </p>
         <p className="text-xs text-white/10 mt-2">Unapologetic Craft. No Molds. No Fluff.</p>
-        <Link
-          href="/contact"
-          className="inline-block mt-4 text-[10px] tracking-[0.2em] uppercase font-bold text-[#14B8A6]/70 hover:text-[#14B8A6]"
-        >
+        <ContactTrigger className="inline-block mt-4 text-[10px] tracking-[0.2em] uppercase font-bold text-[#14B8A6]/70 hover:text-[#14B8A6]">
           Contact Mark
-        </Link>
+        </ContactTrigger>
       </footer>
     </div>
   )

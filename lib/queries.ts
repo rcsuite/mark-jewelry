@@ -1,7 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { withLivePrice, withLivePrices } from '@/lib/pricing'
 import { getSilverSpotPerOz } from '@/lib/silver'
-import type { Category, CurrentBuild, HeroSlide, Review, ShopPiece, VideoSession } from '@/lib/types'
+import type {
+  Category,
+  CurrentBuild,
+  HeroSlide,
+  MarkMoment,
+  Review,
+  ShopPiece,
+  VideoSession,
+} from '@/lib/types'
 
 export async function getCategories(): Promise<Category[]> {
   const supabase = await createClient()
@@ -95,6 +103,31 @@ export function toReview(row: Record<string, unknown>): Review {
     rating: Number(row.rating ?? 5),
     sort_order: Number(row.sort_order ?? 0),
   }
+}
+
+export function toMarkMoment(row: Record<string, unknown>): MarkMoment {
+  return {
+    id: String(row.id),
+    image_url: String(row.image_url ?? ''),
+    caption: String(row.caption ?? ''),
+    sort_order: Number(row.sort_order ?? 0),
+    created_at: (row.created_at as string | null) ?? null,
+  }
+}
+
+export async function getMarkMoments(): Promise<MarkMoment[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('mark_moments')
+    .select('*')
+    .order('sort_order', { ascending: true })
+
+  if (error) {
+    console.error('getMarkMoments:', error.message)
+    return []
+  }
+
+  return (data ?? []).map((row) => toMarkMoment(row as Record<string, unknown>))
 }
 
 export async function getReviews(): Promise<Review[]> {

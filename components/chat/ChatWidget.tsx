@@ -9,9 +9,11 @@ import {
 import type { ChatMessage } from '@/lib/chat-types'
 
 type Props = {
-  /** Open the panel on mount (after contact form submit). */
   initiallyOpen?: boolean
 }
+
+const AWAY_COPY =
+  "I'm away from my bench right now so your message will notify my phone. I'll chat with you soon!"
 
 export default function ChatWidget({ initiallyOpen = false }: Props) {
   const [open, setOpen] = useState(initiallyOpen)
@@ -19,6 +21,7 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [visitorName, setVisitorName] = useState('')
   const [pieceTitle, setPieceTitle] = useState<string | null>(null)
+  const [markIsAway, setMarkIsAway] = useState(true)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -40,8 +43,11 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
       }
       setHasSession(true)
       setVisitorName(result.data.thread.visitor_name)
-      setPieceTitle(result.data.thread.piece_title)
+      setPieceTitle(
+        result.data.thread.viewing_context || result.data.thread.piece_title || null
+      )
       setMessages(result.data.messages)
+      setMarkIsAway(result.data.markIsAway)
       setError(null)
     })
   }
@@ -108,6 +114,12 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
               ×
             </button>
           </div>
+
+          {markIsAway && (
+            <div className="px-3 py-2 bg-[#B59A54]/15 border-b border-[#B59A54]/30 text-[11px] text-[#E7D7A4] leading-snug">
+              {AWAY_COPY}
+            </div>
+          )}
 
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {emptyPromptShown && (

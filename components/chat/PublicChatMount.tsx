@@ -7,7 +7,7 @@ import ChatWidget from '@/components/chat/ChatWidget'
 export default function PublicChatMount() {
   const pathname = usePathname()
   if (!pathname) return null
-  if (pathname.startsWith('/admin') || pathname.startsWith('/login') || pathname.startsWith('/contact')) {
+  if (pathname.startsWith('/admin') || pathname.startsWith('/login')) {
     return null
   }
   return <ChatWidget />

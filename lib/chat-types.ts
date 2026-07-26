@@ -13,6 +13,7 @@ export type ChatThreadSummary = {
   visitor_email: string
   piece_id: string | null
   piece_title: string | null
+  viewing_context?: string | null
   mode: 'live' | 'email_only'
   last_message_at: string
   unread_for_mark: number

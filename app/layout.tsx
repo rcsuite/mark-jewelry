@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ContactProvider } from "@/components/chat/ContactProvider";
 import PublicChatMount from "@/components/chat/PublicChatMount";
 import "./globals.css";
 
@@ -41,8 +43,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {children}
-        <PublicChatMount />
+        <Suspense fallback={null}>
+          <ContactProvider>
+            {children}
+            <PublicChatMount />
+          </ContactProvider>
+        </Suspense>
       </body>
     </html>
   );

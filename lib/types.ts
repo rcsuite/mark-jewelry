@@ -73,3 +73,12 @@ export type Review = {
   rating: number
   sort_order: number
 }
+
+/** Personal / hobby photos for the Know Mark bridge. */
+export type MarkMoment = {
+  id: string
+  image_url: string
+  caption: string
+  sort_order: number
+  created_at: string | null
+}
