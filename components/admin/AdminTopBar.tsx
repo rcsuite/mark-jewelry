@@ -26,7 +26,7 @@ export default function AdminTopBar({ silver, initialUnread }: Props) {
   useEffect(() => {
     const id = window.setInterval(() => {
       void countUnreadForMark().then((n) => setUnread(n))
-    }, 12000)
+    }, 5000)
     return () => window.clearInterval(id)
   }, [])
 

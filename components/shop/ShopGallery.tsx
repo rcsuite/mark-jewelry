@@ -280,28 +280,37 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-center gap-3">
-                    <span className="text-2xl font-bold text-white display-font tracking-wider">
-                      {item.inquire_for_price
-                        ? 'Inquire'
-                        : `$${item.price.toFixed(2)}`}
-                    </span>
-                    {item.inquire_for_price ? (
-                      <ContactTrigger
-                        pieceId={item.id}
-                        pieceTitle={item.title}
-                        className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all"
-                      >
-                        Inquire for price
-                      </ContactTrigger>
-                    ) : (
-                      <button
-                        type="button"
-                        className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all"
-                      >
-                        Acquire
-                      </button>
-                    )}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex justify-between items-center gap-3">
+                      <span className="text-2xl font-bold text-white display-font tracking-wider">
+                        {item.inquire_for_price
+                          ? 'Inquire'
+                          : `$${item.price.toFixed(2)}`}
+                      </span>
+                      {item.inquire_for_price ? (
+                        <ContactTrigger
+                          pieceId={item.id}
+                          pieceTitle={item.title}
+                          className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all"
+                        >
+                          Inquire for price
+                        </ContactTrigger>
+                      ) : (
+                        <button
+                          type="button"
+                          className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all"
+                        >
+                          Acquire
+                        </button>
+                      )}
+                    </div>
+                    <ContactTrigger
+                      pieceId={item.id}
+                      pieceTitle={item.title}
+                      className="w-full text-center text-[10px] font-bold tracking-widest uppercase border border-[#14B8A6]/40 text-[#14B8A6] py-2.5 hover:bg-[#14B8A6] hover:text-black transition-all"
+                    >
+                      Inquire about this piece
+                    </ContactTrigger>
                   </div>
                 </div>
               </div>

@@ -7,6 +7,7 @@ import {
   sendVisitorMessage,
 } from '@/lib/chat-actions'
 import type { ChatMessage } from '@/lib/chat-types'
+import { CHAT_FOCUS_EVENT, type ChatFocusDetail } from '@/components/chat/ContactProvider'
 
 type Props = {
   initiallyOpen?: boolean
@@ -21,12 +22,14 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [visitorName, setVisitorName] = useState('')
   const [pieceTitle, setPieceTitle] = useState<string | null>(null)
+  const [aboutPiece, setAboutPiece] = useState<string | null>(null)
   const [markIsAway, setMarkIsAway] = useState(true)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const bottomRef = useRef<HTMLDivElement>(null)
-  const emptyPromptShown = messages.length === 0
+  const inputRef = useRef<HTMLInputElement>(null)
+  const emptyPromptShown = messages.length === 0 && !aboutPiece
 
   const load = () => {
     startTransition(async () => {
@@ -43,9 +46,9 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
       }
       setHasSession(true)
       setVisitorName(result.data.thread.visitor_name)
-      setPieceTitle(
+      const ctx =
         result.data.thread.viewing_context || result.data.thread.piece_title || null
-      )
+      setPieceTitle(ctx)
       setMessages(result.data.messages)
       setMarkIsAway(result.data.markIsAway)
       setError(null)
@@ -64,8 +67,25 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
   }, [initiallyOpen])
 
   useEffect(() => {
+    const onFocus = (event: Event) => {
+      const detail = (event as CustomEvent<ChatFocusDetail>).detail
+      const title = detail?.pieceTitle ?? null
+      setAboutPiece(title)
+      if (title) setPieceTitle(title)
+      setHasSession(true)
+      setOpen(true)
+      setDraft('')
+      load()
+      window.setTimeout(() => inputRef.current?.focus(), 50)
+    }
+    window.addEventListener(CHAT_FOCUS_EVENT, onFocus)
+    return () => window.removeEventListener(CHAT_FOCUS_EVENT, onFocus)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, open])
+  }, [messages, open, aboutPiece])
 
   if (!hasSession && !open) return null
 
@@ -79,6 +99,7 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
         return
       }
       setDraft('')
+      setAboutPiece(null)
       setMessages((prev) => [...prev, result.data!.message])
       setError(null)
     })
@@ -89,6 +110,7 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
       await clearVisitorChatSession()
       setHasSession(false)
       setMessages([])
+      setAboutPiece(null)
       setOpen(false)
     })
   }
@@ -124,8 +146,8 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {emptyPromptShown && (
               <p className="text-sm text-[#A1A1AA] leading-relaxed">
-                What do you want to ask Mark? Hit enter to send — he’ll get an email for this first
-                message, then you can keep chatting here.
+                What do you want to ask Mark? Hit enter to send — if he’s away from the bench,
+                your message will notify his phone after a couple minutes.
               </p>
             )}
             {messages.map((m) => (
@@ -145,8 +167,16 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
 
           {error && <p className="px-3 text-xs text-red-400">{error}</p>}
 
-          <div className="p-3 border-t border-[#27272A] flex gap-2">
+          {aboutPiece && (
+            <div className="px-3 pt-2 pb-1 border-t border-[#27272A] text-right">
+              <p className="text-xs text-[#14B8A6] font-medium truncate">@{aboutPiece}</p>
+              <p className="text-[11px] text-[#71717A]">What do you want to ask Mark?</p>
+            </div>
+          )}
+
+          <div className={`px-3 pb-3 flex gap-2 ${aboutPiece ? '' : 'pt-3 border-t border-[#27272A]'}`}>
             <input
+              ref={inputRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
@@ -155,7 +185,9 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
                   send()
                 }
               }}
-              placeholder="Type a message…"
+              placeholder={
+                aboutPiece ? 'Ask about this piece…' : 'Type a message…'
+              }
               className="flex-1 bg-[#05070A] border border-[#27272A] px-3 py-2 text-sm text-white outline-none focus:border-[#14B8A6]"
             />
             <button

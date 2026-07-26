@@ -269,39 +269,52 @@ export default function HomePage({
           {featured.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
               {featured.map((piece) => (
-                <Link
+                <div
                   key={piece.id}
-                  href={`/shop?category=${piece.category}`}
-                  className="group bg-[#05070A] border border-white/5 block"
+                  className="group bg-[#05070A] border border-white/5 flex flex-col"
                 >
-                  <div className="aspect-square bg-[#111419] border-b border-white/5 relative overflow-hidden flex items-center justify-center grayscale group-hover:grayscale-0 transition-all duration-500">
-                    {piece.photos[0] ? (
-                      <img
-                        src={piece.photos[0]}
-                        alt={piece.title}
-                        className="absolute inset-0 w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-xs text-white/20 display-font">[No Photo]</span>
-                    )}
-                  </div>
-                  <div className="p-6">
-                    <h4 className="text-xl display-font text-white mb-2 group-hover:text-[#14B8A6] transition-colors">
-                      {piece.title}
-                    </h4>
-                    <p className="text-sm metal-oxidized mb-4 line-clamp-2">{pieceBlurb(piece)}</p>
-                    <div className="flex justify-between items-baseline border-t border-white/5 pt-4">
-                      <span className="text-lg font-bold text-white">
-                        {piece.inquire_for_price
-                          ? 'Inquire'
-                          : `$${piece.price.toFixed(2)}`}
-                      </span>
-                      <span className="accent-brass text-[10px] font-bold tracking-widest uppercase">
-                        View Specs
-                      </span>
+                  <Link
+                    href={`/shop?category=${piece.category}`}
+                    className="block flex-grow"
+                  >
+                    <div className="aspect-square bg-[#111419] border-b border-white/5 relative overflow-hidden flex items-center justify-center grayscale group-hover:grayscale-0 transition-all duration-500">
+                      {piece.photos[0] ? (
+                        <img
+                          src={piece.photos[0]}
+                          alt={piece.title}
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs text-white/20 display-font">[No Photo]</span>
+                      )}
                     </div>
+                    <div className="p-6 pb-3">
+                      <h4 className="text-xl display-font text-white mb-2 group-hover:text-[#14B8A6] transition-colors">
+                        {piece.title}
+                      </h4>
+                      <p className="text-sm metal-oxidized mb-4 line-clamp-2">{pieceBlurb(piece)}</p>
+                      <div className="flex justify-between items-baseline border-t border-white/5 pt-4">
+                        <span className="text-lg font-bold text-white">
+                          {piece.inquire_for_price
+                            ? 'Inquire'
+                            : `$${piece.price.toFixed(2)}`}
+                        </span>
+                        <span className="accent-brass text-[10px] font-bold tracking-widest uppercase">
+                          View Specs
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                  <div className="px-6 pb-6">
+                    <ContactTrigger
+                      pieceId={piece.id}
+                      pieceTitle={piece.title}
+                      className="w-full text-center text-[10px] font-bold tracking-widest uppercase border border-[#14B8A6]/40 text-[#14B8A6] py-2.5 hover:bg-[#14B8A6] hover:text-black transition-all"
+                    >
+                      Inquire about this piece
+                    </ContactTrigger>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           ) : (

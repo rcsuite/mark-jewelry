@@ -52,11 +52,55 @@ export async function getChatCookiePair(): Promise<{
   }
 }
 
+/**
+ * If the visitor already has a live-chat session, attach piece context and skip signup.
+ * Otherwise the UI should open the contact modal.
+ */
+export async function focusChatAboutPiece(input: {
+  pieceId?: string | null
+  pieceTitle?: string | null
+}): Promise<
+  ActionResult<{
+    hasSession: boolean
+    pieceTitle: string | null
+  }>
+> {
+  const { sessionId, token } = await getChatCookiePair()
+  if (!sessionId || !token) {
+    return { ok: true, data: { hasSession: false, pieceTitle: input.pieceTitle ?? null } }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('chat_set_piece_context', {
+    p_session_id: sessionId,
+    p_token: token,
+    p_piece_id: input.pieceId || null,
+    p_piece_title: input.pieceTitle || null,
+  })
+
+  if (error) return { ok: false, error: error.message }
+
+  const payload = data as { ok?: boolean; error?: string }
+  if (!payload?.ok) {
+    // Stale cookies — treat as no session so they can sign in again.
+    return { ok: true, data: { hasSession: false, pieceTitle: input.pieceTitle ?? null } }
+  }
+
+  return {
+    ok: true,
+    data: {
+      hasSession: true,
+      pieceTitle: input.pieceTitle ?? null,
+    },
+  }
+}
+
 async function notifyMarkEmail(input: {
   visitorName: string
   visitorEmail: string
   body: string
   pieceTitle?: string | null
+  subjectPrefix?: string
 }): Promise<{ sent: boolean; reason?: string }> {
   const apiKey = process.env.RESEND_API_KEY
   const to = process.env.MARK_NOTIFY_EMAIL
@@ -70,7 +114,8 @@ async function notifyMarkEmail(input: {
   }
 
   const pieceLine = input.pieceTitle ? `\nPiece: ${input.pieceTitle}` : ''
-  const text = `New message from ${input.visitorName} <${input.visitorEmail}>${pieceLine}\n\n${input.body}\n\nReply in Admin → Messages.`
+  const prefix = input.subjectPrefix ?? 'Chat'
+  const text = `${prefix} from ${input.visitorName} <${input.visitorEmail}>${pieceLine}\n\n${input.body}\n\nReply in Admin → Messages.`
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -83,8 +128,8 @@ async function notifyMarkEmail(input: {
         from,
         to: [to],
         subject: input.pieceTitle
-          ? `Chat: ${input.pieceTitle}`
-          : `New chat from ${input.visitorName}`,
+          ? `${prefix}: ${input.pieceTitle}`
+          : `${prefix} from ${input.visitorName}`,
         text,
       }),
     })
@@ -332,12 +377,12 @@ export async function getAdminThread(threadId: string): Promise<
 
   if (msgErr) return { ok: false, error: msgErr.message }
 
-  await supabase.from('chat_threads').update({ unread_for_mark: 0 }).eq('id', threadId)
+  await supabase.rpc('mark_thread_seen_by_mark', { p_thread_id: threadId })
 
   return {
     ok: true,
     data: {
-      thread: thread as ChatThreadSummary,
+      thread: { ...(thread as ChatThreadSummary), unread_for_mark: 0 },
       messages: (messages ?? []) as ChatMessage[],
     },
   }
@@ -385,6 +430,92 @@ export async function countUnreadForMark(): Promise<number> {
   if (!user) return 0
   const { data } = await supabase.from('chat_threads').select('unread_for_mark')
   return (data ?? []).reduce((sum, row) => sum + Number(row.unread_for_mark ?? 0), 0)
+}
+
+export type UnreadAlert = {
+  unreadCount: number
+  threadId: string | null
+  visitorName: string | null
+  pieceTitle: string | null
+  preview: string | null
+}
+
+/** Latest unread visitor thread — used for Mark’s popup alert. */
+export async function peekUnreadAlert(): Promise<UnreadAlert> {
+  const empty: UnreadAlert = {
+    unreadCount: 0,
+    threadId: null,
+    visitorName: null,
+    pieceTitle: null,
+    preview: null,
+  }
+  const { supabase, user } = await requireUser()
+  if (!user) return empty
+
+  const { data: threads } = await supabase
+    .from('chat_threads')
+    .select('id, visitor_name, piece_title, viewing_context, unread_for_mark, last_message_at')
+    .gt('unread_for_mark', 0)
+    .order('last_message_at', { ascending: false })
+    .limit(1)
+
+  const unreadCount = await countUnreadForMark()
+  const top = threads?.[0]
+  if (!top) return { ...empty, unreadCount }
+
+  const { data: lastMsg } = await supabase
+    .from('chat_messages')
+    .select('body')
+    .eq('thread_id', top.id)
+    .eq('sender', 'visitor')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return {
+    unreadCount,
+    threadId: top.id,
+    visitorName: top.visitor_name,
+    pieceTitle: top.viewing_context || top.piece_title,
+    preview: lastMsg?.body ?? null,
+  }
+}
+
+/**
+ * Email Mark for visitor messages still unseen after 2 minutes.
+ * Call from admin poll (when Mark is online) or a cron with an authenticated path.
+ */
+export async function processChatEmailReminders(): Promise<
+  ActionResult<{ emailed: number }>
+> {
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: 'Unauthorized.' }
+
+  const { data, error } = await supabase.rpc('claim_due_chat_email_reminders')
+  if (error) return { ok: false, error: error.message }
+
+  const rows = (data ?? []) as Array<{
+    message_id: string
+    thread_id: string
+    body: string
+    visitor_name: string
+    visitor_email: string
+    piece_title?: string | null
+  }>
+
+  let emailed = 0
+  for (const row of rows) {
+    const result = await notifyMarkEmail({
+      visitorName: row.visitor_name,
+      visitorEmail: row.visitor_email,
+      body: row.body,
+      pieceTitle: row.piece_title,
+      subjectPrefix: 'Unread chat (2 min)',
+    })
+    if (result.sent) emailed += 1
+  }
+
+  return { ok: true, data: { emailed } }
 }
 
 /**
