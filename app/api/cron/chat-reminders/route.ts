@@ -3,10 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 import { adminMessagesUrl } from '@/lib/site-url'
 
 /**
- * Processes 2-minute unread chat email reminders.
- * Call every minute from Supabase Cron (pg_cron + pg_net) — not Vercel Cron.
+ * Processes 2-minute unread chat email reminders (Vercel Cron).
  * Auth: Authorization: Bearer CRON_SECRET
- * Needs SUPABASE_SERVICE_ROLE_KEY + RESEND_API_KEY + MARK_NOTIFY_EMAIL on Vercel.
+ * Needs SUPABASE_SERVICE_ROLE_KEY + RESEND_API_KEY + MARK_NOTIFY_EMAIL.
  *
  * While Mark has /admin open, AdminIncomingMessageAlert also runs reminders
  * on his authenticated session — so email still works in local/dev without cron.

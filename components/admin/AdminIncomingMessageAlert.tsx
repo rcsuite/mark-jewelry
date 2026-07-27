@@ -10,7 +10,7 @@ import {
 
 /**
  * Polls for new visitor messages while Mark is anywhere in /admin.
- * Also runs the 2-minute email reminder claim so emails fire even without Supabase Cron.
+ * Also runs the 2-minute email reminder claim so emails fire even without Vercel cron.
  */
 export default function AdminIncomingMessageAlert({
   initialUnread,

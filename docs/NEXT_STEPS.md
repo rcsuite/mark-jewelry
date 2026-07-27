@@ -22,7 +22,7 @@ Email alerts for Mark **do not send** until these exist in `.env.local` / Vercel
 1. `RESEND_API_KEY` — from [resend.com](https://resend.com)
 2. `MARK_NOTIFY_EMAIL` — Mark’s inbox
 3. Optional `MARK_NOTIFY_FROM` (verify a domain in Resend for production From)
-4. For offline cron: `CRON_SECRET` + `SUPABASE_SERVICE_ROLE_KEY` on Vercel; schedule the HTTP hit from Supabase Cron (Pro project) — see `docs/MESSAGING.md`
+4. For offline cron: `CRON_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` on Vercel
 
 ## Meaningful next steps (pick one)
 
