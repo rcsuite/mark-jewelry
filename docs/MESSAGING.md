@@ -55,14 +55,15 @@ Chat works without email. Unread → phone email does **not** until env is set:
 | `RESEND_API_KEY` | Resend API key |
 | `MARK_NOTIFY_EMAIL` | Address that receives alerts (Mark’s inbox) |
 | `MARK_NOTIFY_FROM` | Optional but recommended. Verified domain From, e.g. `Earthen Miners <inquiry@earthenminersdesigns.com>`. Default: `onboarding@resend.dev` (test-only). |
-| `CRON_SECRET` | Protects `/api/cron/chat-reminders` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Cron claims due reminders server-side (required when Mark is offline) |
+| `CRON_SECRET` | Protects `/api/cron/chat-reminders`. Set on **Vercel** (and optionally `.env.local` for local curls). The Supabase Cron job must send the **same** value as `Authorization: Bearer …`. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Cron claims due reminders server-side (required when Mark is offline) — lives on **Vercel**, not in the Cron SQL project |
 | `NEXT_PUBLIC_SITE_URL` | Optional. Canonical site origin for links in emails (e.g. `https://earthenminersdesigns.com`). Falls back to Vercel URL. |
 
 - While Mark is in `/admin`, `AdminIncomingMessageAlert` also calls
   `processChatEmailReminders()` periodically.
-- When Mark is offline, Vercel cron (`vercel.json` → `/api/cron/chat-reminders`) needs
-  the secret + service role on the deployment.
+- When Mark is offline, **Supabase Cron** (on your Pro project) should HTTP GET
+  `https://<your-live-domain>/api/cron/chat-reminders` every minute with the Bearer secret.
+  Vercel still needs `CRON_SECRET` + `SUPABASE_SERVICE_ROLE_KEY` + Resend vars — the route runs there.
 
 Without `RESEND_API_KEY` / `MARK_NOTIFY_EMAIL`, the app logs that email was skipped.
 
