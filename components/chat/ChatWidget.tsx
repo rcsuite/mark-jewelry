@@ -7,6 +7,8 @@ import {
   sendVisitorMessage,
 } from '@/lib/chat-actions'
 import type { ChatMessage } from '@/lib/chat-types'
+import { withPieceTag } from '@/lib/chat-format'
+import ChatBubbleBody from '@/components/chat/ChatBubbleBody'
 import { CHAT_FOCUS_EVENT, type ChatFocusDetail } from '@/components/chat/ContactProvider'
 
 type Props = {
@@ -90,7 +92,7 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
   if (!hasSession && !open) return null
 
   const send = () => {
-    const body = draft.trim()
+    const body = withPieceTag(draft, aboutPiece)
     if (!body) return
     startTransition(async () => {
       const result = await sendVisitorMessage(body)
@@ -159,7 +161,7 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
                     : 'mr-auto bg-[#18181B] border border-[#27272A] text-[#E4E4E7]'
                 }`}
               >
-                {m.body}
+                <ChatBubbleBody body={m.body} />
               </div>
             ))}
             <div ref={bottomRef} />

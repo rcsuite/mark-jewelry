@@ -77,6 +77,13 @@ inventory are DB-driven so the editor has real data to mutate.
 - [ ] **Finish the admin placeholders.** `/admin/clients` and `/admin/invoices` exist as
       routes but the dashboard still lists them as "Coming Soon".
 
+## P4 — Messaging (code done; email ops often pending)
+
+- [x] Contact popup, live chat cookies, Inquire about piece, admin inbox / badge / popup
+- [x] Piece `@Title` stored in message body for thread clarity
+- [ ] **Configure Resend** — `RESEND_API_KEY`, `MARK_NOTIFY_EMAIL`, cron secrets on Vercel
+      (see `docs/MESSAGING.md`)
+
 ## Open decisions
 
 - Homepage content lives in new Supabase tables (`categories`, `reviews`, `handiworks`)

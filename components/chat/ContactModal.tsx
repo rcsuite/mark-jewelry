@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { startChat } from '@/lib/chat-actions'
+import { withPieceTag } from '@/lib/chat-format'
 
 type Props = {
   pieceId?: string | null
@@ -25,9 +26,7 @@ export default function ContactModal({
   const [email, setEmail] = useState('')
   const [passcode, setPasscode] = useState('')
   const [mode, setMode] = useState<'live' | 'email_only'>('live')
-  const [message, setMessage] = useState(
-    pieceTitle ? `I'd like to inquire about: ${pieceTitle}` : ''
-  )
+  const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -45,13 +44,14 @@ export default function ContactModal({
       const ctx =
         viewingContext ||
         (pieceTitle ? pieceTitle : null)
+      const tagged = withPieceTag(message, pieceTitle)
 
       const result = await startChat({
         name,
         email,
         passcode,
         mode,
-        message: mode === 'email_only' ? message : message || undefined,
+        message: mode === 'email_only' ? tagged : tagged || undefined,
         pieceId,
         pieceTitle,
         viewingContext: ctx,

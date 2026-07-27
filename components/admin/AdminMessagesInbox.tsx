@@ -9,6 +9,7 @@ import {
   touchMarkPresence,
 } from '@/lib/chat-actions'
 import type { ChatMessage, ChatThreadSummary } from '@/lib/chat-types'
+import ChatBubbleBody from '@/components/chat/ChatBubbleBody'
 
 export default function AdminMessagesInbox({
   initialThreads,
@@ -184,7 +185,7 @@ export default function AdminMessagesInbox({
                           : 'mr-auto bg-[#18181B] border border-[#27272A]'
                       }`}
                     >
-                      {m.body}
+                      <ChatBubbleBody body={m.body} />
                     </div>
                   ))}
                   <div ref={bottomRef} />

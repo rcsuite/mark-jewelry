@@ -1,0 +1,25 @@
+---
+description: Visitor chat, piece inquire tags, and Mark email notify env
+globs: components/chat/**/*,lib/chat-*.ts,app/api/cron/chat-reminders/**/*,components/admin/AdminMessages*.tsx,components/admin/AdminIncomingMessageAlert.tsx
+alwaysApply: false
+---
+
+# Messaging
+
+Full write-up: `docs/MESSAGING.md`.
+
+## Piece context in the thread
+
+When a visitor inquires about a piece, prepend `@Piece Title` into the **message body**
+via `withPieceTag` so history stays clear for visitor and Mark. Render with
+`ChatBubbleBody`. Do not hide the piece name only on the thread row.
+
+## Email
+
+Requires `RESEND_API_KEY` + `MARK_NOTIFY_EMAIL`. Unread live messages wait ~2 minutes
+before email (cancelled if Mark opens the thread). Cron: `/api/cron/chat-reminders`.
+
+## Auth boundary
+
+Visitor chat uses site passcodes + cookies, **not** Supabase Auth. Never put visitors
+into `auth.users` for chat — that would risk `/admin` access.

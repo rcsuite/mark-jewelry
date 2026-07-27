@@ -1,51 +1,54 @@
 # Next steps (handoff for a new chat)
 
-Snapshot after the storefront-editing + shop-search + session/upload hardening work.
-Read this with `docs/ADMIN_EDITING.md`, `docs/ROADMAP.md`, and `.cursor/rules/`.
+Snapshot after messaging + pricing + Know Mark + admin hub work.
+Read with `docs/MESSAGING.md`, `docs/ADMIN_EDITING.md`, `docs/ROADMAP.md`, and `.cursor/rules/`.
 
 ## What is done
 
 - Server-side data fetching for `/`, `/shop`, `/workbench`
-- Image crop + upload to Supabase Storage (`forge-images`, `shop-inventory`)
-- `categories` + `reviews` tables; homepage editor at `/admin/homepage`
-- Category pencil → cover photo + piece grid + reorder; piece editor for all fields
-- Shop intelligent search + detailed filter overlay + Back to Homepage
-- Long-lived admin cookies, PWA manifest (`start_url: /admin`), session refresh on
-  visibility, uploads that refuse `blob:` URLs and refresh auth first
+- Image crop + upload to Supabase Storage; long-lived admin session / PWA / no `blob:` URLs
+- Homepage editor ethos (`/admin/homepage`), categories, reviews, featured, sold strip
+- Shop search + filters; multi-category pieces; formula pricing + silver spot on admin hub
+- **Visitor chat / Contact popup / Inquire about piece** — see `docs/MESSAGING.md`
+  - Piece questions store `@Title` in the message body so both sides see context
+  - 2‑min unread email reminder (needs Resend env — often still unset)
+  - Admin messages inbox + top-bar badge + incoming popup
+- **Know Mark** — `/mark` + `/admin/mark` (`mark_moments`)
+
+## Still needs ops (not code)
+
+Email alerts for Mark **do not send** until these exist in `.env.local` / Vercel:
+
+1. `RESEND_API_KEY` — from [resend.com](https://resend.com)
+2. `MARK_NOTIFY_EMAIL` — Mark’s inbox
+3. Optional `MARK_NOTIFY_FROM` (verify a domain in Resend for production From)
+4. For offline cron: `CRON_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` on Vercel
 
 ## Meaningful next steps (pick one)
 
-### 1. Commerce (biggest product gap)
-- Wire **Stripe** behind Acquire / Claim buttons
-- **Claim current build** flow (workbench CTA currently promises this)
-- Finish `/admin/clients` and `/admin/invoices` (still “Coming Soon” on the hub)
+### 1. Finish Mark notify email (ops)
+Walk through Resend + env + send a test inquire while Mark is not in admin.
 
-### 2. Admin polish (small, ethos-aligned)
-- Confirm + delete category from homepage editor
-- Drag-reorder sold strip
-- Migrate remaining client `supabase.from().insert()` (add-piece / finalize) to
-  Server Actions per `.cursor/rules/mutations-and-auth.mdc`
+### 2. Commerce (biggest product gap)
+- Wire **Stripe** behind Acquire / Claim
+- Claim current build flow
+- Finish `/admin/clients` and `/admin/invoices`
 
-### 3. Mark’s device checklist (ops, not code)
-After deploying this branch:
-1. On Mark’s phone, open the live site (not a stale home-screen cache if possible)
-2. Log in once at `/login`
-3. Re-add Home Screen shortcut if the old one was from before the upload fix
-4. Upload a test crop — confirm the URL is `…supabase.co/storage/v1/object/public/…`
-5. In Supabase Dashboard → Auth → Sessions: ensure **no** inactivity timeout
+### 3. Admin polish
+- Confirm + delete category; drag-reorder sold strip
+- Migrate leftover client inserts to Server Actions
 
 ## Rules the next chat must keep
 
-| Rule | Why |
+| Rule / doc | Why |
 |---|---|
 | `.cursor/rules/admin-editing-ethos.mdc` | Edits look like poking the real site |
 | `.cursor/rules/admin-auth-uploads.mdc` | Long session + never save `blob:` |
-| `.cursor/rules/data-fetching.mdc` | No Supabase in `useEffect` |
+| `.cursor/rules/messaging.mdc` / `docs/MESSAGING.md` | Chat cookies ≠ Supabase Auth; `@piece` in body |
+| `.cursor/rules/data-fetching.mdc` | No Supabase in `useEffect` for page data |
 | `.cursor/rules/storefront-data.mdc` | Categories from DB; write `photos[]` |
-| `docs/ADMIN_EDITING.md` | Full UI ethos for new sections |
 
 ## Suggested first prompt for the new chat
 
-> Read `docs/NEXT_STEPS.md` and `.cursor/rules/admin-auth-uploads.mdc`. Next we
-> should wire Stripe checkout for Acquire on `/shop`. Follow the admin-editing
-> ethos for any new UI.
+> Read `docs/NEXT_STEPS.md` and `docs/MESSAGING.md`. Help finish Resend email notify
+> for Mark, or wire Stripe checkout for Acquire on `/shop`.

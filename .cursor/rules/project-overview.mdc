@@ -18,11 +18,16 @@ Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind v4, Supabase
 | `/` | Homepage. Hero scrolls the current build **only when active**. |
 | `/shop` | "The Vault" — completed pieces, filter + search. |
 | `/workbench` | Live build timeline + video sessions. |
+| `/mark` | Know Mark gallery (`mark_moments`). |
 | `/login` | Admin auth portal. |
 | `/admin` | Admin hub (guarded by `proxy.ts`). |
 | `/admin/current-project` | Manage the live build; finalize it into the shop. |
 | `/admin/add-piece` | Manually add a finished piece to the shop. |
 | `/admin/homepage` | Editable mirror of `/` — drag, pencil, reorder. |
+| `/admin/messages` | Visitor chat inbox. |
+| `/admin/mark` | Edit Know Mark moments. |
+
+Contact / Inquire is an in-page popup; details in `docs/MESSAGING.md`.
 
 ## The golden rule
 

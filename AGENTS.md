@@ -14,6 +14,7 @@ Start here:
 - `docs/ARCHITECTURE.md` — how the system fits together, the data model, and known gaps.
 - `docs/ROADMAP.md` — the prioritized to-do list.
 - `docs/ADMIN_EDITING.md` — the **user-intuitive edit** ethos (mirror the site, pencil, drag).
+- `docs/MESSAGING.md` — visitor chat, piece inquire tags, Mark email notify setup.
 - `docs/NEXT_STEPS.md` — handoff: what’s done and what to build next.
 - `.cursor/rules/` — the conventions to follow when writing code.
 

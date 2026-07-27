@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { startChat } from '@/lib/chat-actions'
+import { withPieceTag } from '@/lib/chat-format'
 import ChatWidget from '@/components/chat/ChatWidget'
 
 type Props = {
@@ -17,9 +18,7 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
   const [email, setEmail] = useState('')
   const [passcode, setPasscode] = useState('')
   const [mode, setMode] = useState<'live' | 'email_only'>('live')
-  const [message, setMessage] = useState(
-    pieceTitle ? `I'd like to inquire about: ${pieceTitle}` : ''
-  )
+  const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [openWidget, setOpenWidget] = useState(false)
@@ -29,12 +28,13 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
     startTransition(async () => {
       setError(null)
       setStatus(null)
+      const tagged = withPieceTag(message, pieceTitle)
       const result = await startChat({
         name,
         email,
         passcode,
         mode,
-        message: mode === 'email_only' ? message : message || undefined,
+        message: mode === 'email_only' ? tagged : tagged || undefined,
         pieceId,
         pieceTitle,
       })

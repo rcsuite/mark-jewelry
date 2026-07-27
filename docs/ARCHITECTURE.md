@@ -33,11 +33,12 @@ unreliable.
 
 ## Routes
 
-**Public** — `/` (homepage), `/shop` (The Vault), `/workbench` (live build).
+**Public** — `/` (homepage), `/shop` (The Vault), `/workbench` (live build), `/mark`
+(Know Mark). Contact is an in-page popup; see `docs/MESSAGING.md`.
 
-**Admin**, all behind `proxy.ts` — `/admin` (hub), `/admin/current-project` (manage and
-finalize the live build), `/admin/add-piece` (manual entry). `/login` is the auth portal
-and redirects to `/admin` when a session already exists.
+**Admin**, all behind `proxy.ts` — `/admin` (hub), `/admin/current-project`,
+`/admin/add-piece`, `/admin/homepage`, `/admin/messages`, `/admin/mark`. `/login` is
+the auth portal and redirects to `/admin` when a session already exists.
 
 ## Auth
 
@@ -127,7 +128,8 @@ Server Action, never by a client-side insert.
 
 ### Planned tables
 
-None currently — homepage sections are DB-driven. See `docs/ADMIN_EDITING.md`.
+None currently — homepage sections and messaging are DB-driven. Chat schema and
+notify email env: `docs/MESSAGING.md`.
 
 ## Data flow rules
 
@@ -137,15 +139,14 @@ rationale and the migration pattern. Writes go through Server Actions that verif
 and then call `revalidatePath`, rather than client-side inserts followed by
 `window.location.reload()`.
 
+Visitor chat is an exception for **polling** (cookies + RPCs every few seconds); it
+still must not use the admin Supabase Auth user. See `docs/MESSAGING.md`.
+
 ## Known gaps
 
-- Admin writes are still client-side `supabase.from(...).insert()` calls rather than
-  Server Actions. `createCategory` is the one exception and the pattern to copy.
-- Nothing writes `categories.image_url` yet, so the homepage grid still renders
-  `[SLUG IMAGE]` placeholders.
-- Categories can be added but not renamed, reordered, or removed from the admin.
-- Reviews and the "Available Handiworks" section are still hardcoded JSX.
-- `shop_inventory` has no `sold` column, so pieces have to be deleted rather than
-  retired.
+- Some older admin writes may still use client-side `supabase.from(...).insert()`;
+  prefer Server Actions when touching those flows.
+- Stripe checkout is not wired.
+- Mark email notify needs `RESEND_API_KEY` + `MARK_NOTIFY_EMAIL` (often unset locally).
 
-These are tracked in `docs/ROADMAP.md`.
+These are tracked in `docs/ROADMAP.md` and `docs/NEXT_STEPS.md`.
