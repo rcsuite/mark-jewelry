@@ -66,6 +66,8 @@ export default function AdminIncomingMessageAlert({
         <div className="flex gap-2">
           <Link
             href="/admin/messages"
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex-1 text-center py-3 bg-red-500 text-white text-[10px] font-bold tracking-widest uppercase"
             onClick={() => setAlert(null)}
           >
