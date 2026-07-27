@@ -185,7 +185,7 @@ export default function AdminMessagesInbox({
                           : 'mr-auto bg-[#18181B] border border-[#27272A]'
                       }`}
                     >
-                      <ChatBubbleBody body={m.body} />
+                      <ChatBubbleBody body={m.body} fallbackPieceId={active.piece_id} />
                     </div>
                   ))}
                   <div ref={bottomRef} />

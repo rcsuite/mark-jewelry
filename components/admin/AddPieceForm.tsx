@@ -42,7 +42,6 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
     pieceType: '',
     customPieceType: '',
     description: '',
-    tags: '',
     photos: [''] as string[],
     specs: {
       weight: '',
@@ -57,6 +56,8 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
     workmanshipCost: '',
     silverGrams: '',
     inquireForPrice: false,
+    manualPrice: false,
+    manualAmount: '',
   })
 
   const [showOtherCategory, setShowOtherCategory] = useState(false)
@@ -180,6 +181,10 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
   }
 
   const resolvedPrice = useMemo(() => {
+    if (pricing.manualPrice) {
+      const amount = parseMoneyInput(pricing.manualAmount)
+      return amount === null ? null : Math.round(amount)
+    }
     if (pricing.inquireForPrice) return 0
     const material = parseMoneyInput(pricing.materialCost)
     const work = parseMoneyInput(pricing.workmanshipCost)
@@ -221,10 +226,16 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
     const work = parseMoneyInput(pricing.workmanshipCost)
     const grams = parseMoneyInput(pricing.silverGrams)
 
-    if (!pricing.inquireForPrice) {
+    if (pricing.manualPrice) {
+      if (resolvedPrice === null) {
+        setErrorMessage('Enter a manual dollar amount, or turn off Manual price overwrite.')
+        setIsSaving(false)
+        return
+      }
+    } else if (!pricing.inquireForPrice) {
       if (material === null || work === null || grams === null) {
         setErrorMessage(
-          'Enter stone/material, workmanship, and silver grams — or check Inquire for price.'
+          'Enter stone/material, workmanship, and silver grams — or use Manual price / Inquire for price.'
         )
         setIsSaving(false)
         return
@@ -234,6 +245,15 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
         setIsSaving(false)
         return
       }
+    } else if (
+      (material !== null || work !== null || grams !== null) &&
+      (material === null || work === null || grams === null)
+    ) {
+      setErrorMessage(
+        'Fill in all three pricing fields (or leave them blank) when Inquire is checked.'
+      )
+      setIsSaving(false)
+      return
     }
 
     const finalPieceType =
@@ -245,15 +265,12 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
       return
     }
 
-    const tagArray = formData.tags
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter((tag) => tag !== '')
-
     const categoriesList = normalizeCategoryList(
       formData.selectedCategories[0],
       formData.selectedCategories
     )
+
+    const storedPrice = resolvedPrice ?? 0
 
     const { error } = await supabase.from('shop_inventory').insert([
       {
@@ -261,14 +278,15 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
         category: categoriesList[0],
         categories: categoriesList,
         piece_type: finalPieceType,
-        price: pricing.inquireForPrice ? 0 : resolvedPrice!,
+        price: storedPrice,
         material_cost: material,
         workmanship_cost: work,
         silver_grams: grams,
         inquire_for_price: pricing.inquireForPrice,
+        manual_price: pricing.manualPrice,
         photos: finalPhotos,
         description: formData.description,
-        tags: tagArray,
+        tags: [],
         specs: formData.specs,
       },
     ])
@@ -397,9 +415,51 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
           </div>
         )}
 
+        {/* 1. Visuals first */}
+        <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-[#00F2FE]"></div>
+          <div className="flex justify-between items-end mb-6">
+            <h2 className="text-2xl display-font text-white">1. Visuals</h2>
+            <span className="text-[#71717A] text-xs font-bold">
+              {formData.photos.filter((p) => p !== '').length} / 5 Loaded
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {formData.photos.map((img, index) => (
+              <div
+                key={index}
+                className="aspect-[4/5] bg-[#05070A] border border-[#27272A] relative group"
+              >
+                {!img ? (
+                  <button
+                    onClick={() => handleFileClick(index)}
+                    className="w-full h-full flex flex-col items-center justify-center text-[#71717A] hover:text-[#00F2FE] hover:border-[#00F2FE] border border-transparent transition-all"
+                  >
+                    <span className="text-2xl mb-2">📸</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">
+                      {index === 0 ? 'Primary' : 'Add Angle'}
+                    </span>
+                  </button>
+                ) : (
+                  <>
+                    <img src={img} className="w-full h-full object-cover" alt="Angle" />
+                    <button
+                      onClick={() => removePhoto(index)}
+                      className="absolute top-2 right-2 bg-red-900/80 text-white w-6 h-6 flex items-center justify-center rounded-sm hover:bg-red-500 transition-colors"
+                    >
+                      &times;
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-[#14B8A6]"></div>
-          <h2 className="text-2xl display-font mb-6 text-white">1. Classification</h2>
+          <h2 className="text-2xl display-font mb-6 text-white">2. Classification</h2>
 
           <div className="mb-6">
             <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
@@ -514,140 +574,68 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
 
         <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-[#B59A54]"></div>
-          <PiecePricingFields value={pricing} onChange={setPricing} spotPerOz={spotPerOz} />
+          <PiecePricingFields
+            value={pricing}
+            onChange={setPricing}
+            spotPerOz={spotPerOz}
+            sectionNumber={3}
+          />
         </div>
 
         <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-[#B59A54]"></div>
-          <h2 className="text-2xl display-font mb-6 text-white">3. Specs & SEO</h2>
+          <h2 className="text-2xl display-font mb-2 text-white">4. Specs & story</h2>
+          <p className="text-[#71717A] text-xs mb-6">
+            Shop search already matches title, description, category, kind, and specs — no tags
+            needed.
+          </p>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div>
-              <label className="block text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
-                Weight (g)
-              </label>
-              <input
-                type="text"
-                value={formData.specs.weight}
-                onChange={(e) =>
-                  setFormData({ ...formData, specs: { ...formData.specs, weight: e.target.value } })
-                }
-                className="w-full bg-[#05070A] border border-[#27272A] p-3 text-sm text-white outline-none focus:border-[#B59A54]"
-                placeholder="42g"
-              />
-            </div>
-            <div>
-              <label className="block text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
-                Size
-              </label>
-              <input
-                type="text"
-                value={formData.specs.size}
-                onChange={(e) =>
-                  setFormData({ ...formData, specs: { ...formData.specs, size: e.target.value } })
-                }
-                className="w-full bg-[#05070A] border border-[#27272A] p-3 text-sm text-white outline-none focus:border-[#B59A54]"
-                placeholder="10.5"
-              />
-            </div>
-            <div>
-              <label className="block text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
-                Width (mm)
-              </label>
-              <input
-                type="text"
-                value={formData.specs.width}
-                onChange={(e) =>
-                  setFormData({ ...formData, specs: { ...formData.specs, width: e.target.value } })
-                }
-                className="w-full bg-[#05070A] border border-[#27272A] p-3 text-sm text-white outline-none focus:border-[#B59A54]"
-                placeholder="8mm"
-              />
-            </div>
-            <div>
-              <label className="block text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
-                Material
-              </label>
-              <input
-                type="text"
-                value={formData.specs.material}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    specs: { ...formData.specs, material: e.target.value },
-                  })
-                }
-                className="w-full bg-[#05070A] border border-[#27272A] p-3 text-sm text-white outline-none focus:border-[#B59A54]"
-                placeholder=".925 Silver"
-              />
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <label className="block text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
-              Full Description
-            </label>
-            <textarea
-              rows={4}
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full bg-[#05070A] border border-[#27272A] p-4 text-white focus:border-[#B59A54] outline-none resize-none"
-              placeholder="The story of the piece..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
-              Search Tags (Comma Separated)
-            </label>
-            <input
-              type="text"
-              value={formData.tags}
-              onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-              className="w-full bg-[#05070A] border border-[#27272A] p-4 text-white focus:border-[#B59A54] outline-none"
-              placeholder="hammered, oxidized, biker, gothic, turquoise..."
-            />
-          </div>
-        </div>
-
-        <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-1 h-full bg-[#00F2FE]"></div>
-          <div className="flex justify-between items-end mb-6">
-            <h2 className="text-2xl display-font text-white">4. Visuals</h2>
-            <span className="text-[#71717A] text-xs font-bold">
-              {formData.photos.filter((p) => p !== '').length} / 5 Loaded
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {formData.photos.map((img, index) => (
-              <div
-                key={index}
-                className="aspect-[4/5] bg-[#05070A] border border-[#27272A] relative group"
-              >
-                {!img ? (
-                  <button
-                    onClick={() => handleFileClick(index)}
-                    className="w-full h-full flex flex-col items-center justify-center text-[#71717A] hover:text-[#00F2FE] hover:border-[#00F2FE] border border-transparent transition-all"
+          <div className="grid gap-6 md:grid-cols-[minmax(0,18rem)_1fr] md:items-start">
+            <div className="space-y-3">
+              {(
+                [
+                  { key: 'weight', label: 'Weight (g)', placeholder: '42g' },
+                  { key: 'size', label: 'Size', placeholder: '10.5' },
+                  { key: 'width', label: 'Width (mm)', placeholder: '8mm' },
+                  { key: 'material', label: 'Material', placeholder: '.925' },
+                ] as const
+              ).map((row) => (
+                <div key={row.key} className="flex items-center justify-between gap-3">
+                  <label
+                    htmlFor={`spec-${row.key}`}
+                    className="text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase shrink-0 min-w-[7.5rem]"
                   >
-                    <span className="text-2xl mb-2">📸</span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest">
-                      {index === 0 ? 'Primary' : 'Add Angle'}
-                    </span>
-                  </button>
-                ) : (
-                  <>
-                    <img src={img} className="w-full h-full object-cover" alt="Angle" />
-                    <button
-                      onClick={() => removePhoto(index)}
-                      className="absolute top-2 right-2 bg-red-900/80 text-white w-6 h-6 flex items-center justify-center rounded-sm hover:bg-red-500 transition-colors"
-                    >
-                      &times;
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
+                    {row.label}
+                  </label>
+                  <input
+                    id={`spec-${row.key}`}
+                    type="text"
+                    value={formData.specs[row.key]}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        specs: { ...formData.specs, [row.key]: e.target.value },
+                      })
+                    }
+                    className="w-[6.5rem] shrink-0 bg-[#05070A] border border-[#27272A] px-2.5 py-2 text-sm text-white outline-none focus:border-[#B59A54] text-right"
+                    placeholder={row.placeholder}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <label className="block text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
+                Story
+              </label>
+              <textarea
+                rows={12}
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full h-full min-h-[16rem] bg-[#05070A] border border-[#27272A] p-4 text-white focus:border-[#B59A54] outline-none resize-y"
+                placeholder="The story of the piece…"
+              />
+            </div>
           </div>
         </div>
 

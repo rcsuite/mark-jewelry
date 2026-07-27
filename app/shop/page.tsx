@@ -1,9 +1,9 @@
 import { Suspense } from 'react'
 import ShopGallery from '@/components/shop/ShopGallery'
-import { getAvailableInventory, getCategories } from '@/lib/queries'
+import { getCategories, getVaultInventory } from '@/lib/queries'
 
 export default async function ShopPage() {
-  const [items, categories] = await Promise.all([getAvailableInventory(), getCategories()])
+  const [items, categories] = await Promise.all([getVaultInventory(), getCategories()])
 
   return (
     <Suspense

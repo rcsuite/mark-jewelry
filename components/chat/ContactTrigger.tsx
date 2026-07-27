@@ -9,32 +9,31 @@ type Props = {
   pieceTitle?: string | null
 }
 
-/** Opens the contact popup; falls back to /contact deep-link if provider missing. */
+/**
+ * Opens the contact popup. Always renders a <button> so SSR/client HTML matches
+ * (provider used to sit behind Suspense and briefly look missing on the server).
+ */
 export default function ContactTrigger({ children, className, pieceId, pieceTitle }: Props) {
   const contact = useContactOptional()
-
-  if (!contact) {
-    const params = new URLSearchParams({ contact: '1' })
-    if (pieceId) params.set('piece', pieceId)
-    if (pieceTitle) params.set('title', pieceTitle)
-    return (
-      <a href={`/?${params.toString()}`} className={className}>
-        {children}
-      </a>
-    )
-  }
 
   return (
     <button
       type="button"
       className={className}
-      onClick={() =>
-        contact.openContact({
-          pieceId,
-          pieceTitle,
-          viewingContext: pieceTitle,
-        })
-      }
+      onClick={() => {
+        if (contact) {
+          contact.openContact({
+            pieceId,
+            pieceTitle,
+            viewingContext: pieceTitle,
+          })
+          return
+        }
+        const params = new URLSearchParams({ contact: '1' })
+        if (pieceId) params.set('piece', pieceId)
+        if (pieceTitle) params.set('title', pieceTitle)
+        window.location.assign(`/?${params.toString()}`)
+      }}
     >
       {children}
     </button>

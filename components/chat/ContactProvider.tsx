@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
   useTransition,
+  Suspense,
   type ReactNode,
 } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -53,13 +54,40 @@ export function dispatchChatFocus(detail: ChatFocusDetail) {
   window.dispatchEvent(new CustomEvent(CHAT_FOCUS_EVENT, { detail }))
 }
 
+/** Reads ?contact=1 — must live under Suspense; keep outside the main provider shell. */
+function ContactDeepLinkListener({
+  openContact,
+}: {
+  openContact: (opts?: ContactOpenOptions) => void
+}) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.get('contact') !== '1') return
+    const pieceId = searchParams.get('piece')
+    const pieceTitle = searchParams.get('title')
+    openContact({
+      pieceId,
+      pieceTitle,
+      viewingContext: pieceTitle,
+    })
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('contact')
+    params.delete('piece')
+    params.delete('title')
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }, [searchParams, pathname, router, openContact])
+
+  return null
+}
+
 export function ContactProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [opts, setOpts] = useState<ContactOpenOptions>({})
   const [, startTransition] = useTransition()
-  const pathname = usePathname()
-  const router = useRouter()
-  const searchParams = useSearchParams()
 
   const closeContact = useCallback(() => {
     setOpen(false)
@@ -95,24 +123,6 @@ export function ContactProvider({ children }: { children: ReactNode }) {
     [startTransition]
   )
 
-  // Deep links: /shop?contact=1&piece=… or /?contact=1
-  useEffect(() => {
-    if (searchParams.get('contact') !== '1') return
-    const pieceId = searchParams.get('piece')
-    const pieceTitle = searchParams.get('title')
-    openContact({
-      pieceId,
-      pieceTitle,
-      viewingContext: pieceTitle,
-    })
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete('contact')
-    params.delete('piece')
-    params.delete('title')
-    const qs = params.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [searchParams, pathname, router, openContact])
-
   const value = useMemo(
     () => ({ openContact, closeContact }),
     [openContact, closeContact]
@@ -121,6 +131,9 @@ export function ContactProvider({ children }: { children: ReactNode }) {
   return (
     <ContactContext.Provider value={value}>
       {children}
+      <Suspense fallback={null}>
+        <ContactDeepLinkListener openContact={openContact} />
+      </Suspense>
       {open && (
         <ContactModal
           pieceId={opts.pieceId}

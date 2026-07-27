@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ContactProvider } from "@/components/chat/ContactProvider";
 import PublicChatMount from "@/components/chat/PublicChatMount";
@@ -20,6 +19,12 @@ export const metadata: Metadata = {
   description:
     "One-artisan forged silver and stone jewelry. Follow the live build, then shop The Vault.",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
+  },
   appleWebApp: {
     capable: true,
     title: "EMD Admin",
@@ -43,12 +48,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Suspense fallback={null}>
-          <ContactProvider>
-            {children}
-            <PublicChatMount />
-          </ContactProvider>
-        </Suspense>
+        <ContactProvider>
+          {children}
+          <PublicChatMount />
+        </ContactProvider>
       </body>
     </html>
   );

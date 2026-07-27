@@ -40,6 +40,7 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
     width: initial.specs?.width ?? '',
     material: initial.specs?.material ?? '',
     sold: initial.sold,
+    sold_note: initial.sold_note ?? '',
     featured: initial.featured,
     photos: initial.photos.length ? [...initial.photos] : ([] as string[]),
   })
@@ -57,7 +58,11 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
         ? String(initial.silver_grams)
         : '',
     inquireForPrice: initial.inquire_for_price,
+    manualPrice: initial.manual_price,
+    manualAmount: initial.manual_price && initial.price > 0 ? String(Math.round(initial.price)) : '',
   })
+  const [soldPromptOpen, setSoldPromptOpen] = useState(false)
+  const [soldNoteDraft, setSoldNoteDraft] = useState(initial.sold_note ?? '')
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -91,22 +96,46 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
     })
   }
 
-  const save = () => {
+  const resolvePriceFields = ():
+    | { ok: true; material: number | null; work: number | null; grams: number | null; price?: number }
+    | { ok: false; error: string } => {
+    const material = parseMoneyInput(pricing.materialCost)
+    const work = parseMoneyInput(pricing.workmanshipCost)
+    const grams = parseMoneyInput(pricing.silverGrams)
+
+    if (pricing.manualPrice) {
+      const amount = parseMoneyInput(pricing.manualAmount)
+      if (amount === null) {
+        return { ok: false, error: 'Enter a manual dollar amount, or turn off Manual price overwrite.' }
+      }
+      return { ok: true, material, work, grams, price: Math.round(amount) }
+    }
+
+    if (!pricing.inquireForPrice && (material === null || work === null || grams === null)) {
+      return {
+        ok: false,
+        error:
+          'Enter stone/material, workmanship, and silver grams — or use Manual price / Inquire for price.',
+      }
+    }
+
+    return { ok: true, material, work, grams }
+  }
+
+  const save = (overrides?: {
+    sold?: boolean
+    sold_note?: string | null
+    featured?: boolean
+  }) => {
     startTransition(async () => {
       if (!form.title.trim() || form.selectedCategories.length === 0) {
         flash('Title and at least one category are required.', true)
         return
       }
 
-      const material = parseMoneyInput(pricing.materialCost)
-      const work = parseMoneyInput(pricing.workmanshipCost)
-      const grams = parseMoneyInput(pricing.silverGrams)
-
-      if (!pricing.inquireForPrice && (material === null || work === null || grams === null)) {
-        flash(
-          'Enter stone/material, workmanship, and silver grams — or check Inquire for price.',
-          true
-        )
+      const resolved = resolvePriceFields()
+      if (!resolved.ok) {
+        flash(resolved.error, true)
         return
       }
 
@@ -117,17 +146,32 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
         return
       }
 
+      const nextSold = overrides?.sold ?? form.sold
+      const nextNote =
+        overrides?.sold_note !== undefined
+          ? overrides.sold_note
+          : form.sold_note.trim() || null
+      const nextFeatured =
+        overrides?.featured !== undefined
+          ? overrides.featured
+          : nextSold
+            ? false
+            : form.featured
+
       const result = await updatePiece({
         id: piece.id,
         title: form.title,
         category: form.selectedCategories[0],
         categories: form.selectedCategories,
         piece_type: form.piece_type,
-        material_cost: material,
-        workmanship_cost: work,
-        silver_grams: grams,
+        material_cost: resolved.material,
+        workmanship_cost: resolved.work,
+        silver_grams: resolved.grams,
         inquire_for_price: pricing.inquireForPrice,
+        manual_price: pricing.manualPrice,
+        price: resolved.price,
         description: form.description,
+        sold_note: nextNote,
         tags: form.tags
           .split(',')
           .map((t) => t.trim())
@@ -139,8 +183,8 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
           material: form.material,
         },
         photos: form.photos,
-        sold: form.sold,
-        featured: form.featured,
+        sold: nextSold,
+        featured: nextFeatured,
       })
 
       if (!result.ok) {
@@ -148,8 +192,34 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
         return
       }
       setPiece(result.data!)
-      flash('Piece saved.')
+      setForm((prev) => ({
+        ...prev,
+        sold: result.data!.sold,
+        sold_note: result.data!.sold_note ?? '',
+        featured: result.data!.featured,
+      }))
+      setSoldPromptOpen(false)
+      flash(
+        overrides?.sold === true
+          ? 'Marked sold — archived to the sold partition.'
+          : overrides?.sold === false
+            ? 'Back on the forge — listed as available.'
+            : 'Piece saved.'
+      )
     })
+  }
+
+  const confirmMarkSold = () => {
+    const note = soldNoteDraft.trim()
+    if (note.length < 8) {
+      flash('Add a sentence or two about where this piece ended up.', true)
+      return
+    }
+    save({ sold: true, sold_note: note, featured: false })
+  }
+
+  const markAvailableAgain = () => {
+    save({ sold: false, sold_note: form.sold_note.trim() || null })
   }
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -210,8 +280,8 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
           </Link>
           <h1 className="text-4xl display-font">Edit piece</h1>
           <p className="text-[#A1A1AA] text-sm mt-2">
-            Every field stored for this piece. Mark sold to move it to the sold strip and off the
-            shop grid.
+            Every field stored for this piece. Mark sold to archive it under the vault’s sold
+            partition and the homepage sold strip.
           </p>
         </div>
 
@@ -224,6 +294,85 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
             }`}
           >
             {error || status}
+          </div>
+        )}
+
+        {!form.sold ? (
+          <div className="space-y-4">
+            {!soldPromptOpen ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSoldNoteDraft(form.sold_note)
+                  setSoldPromptOpen(true)
+                  setError(null)
+                }}
+                disabled={pending}
+                className="w-full bg-[#B59A54] text-black display-font text-3xl md:text-4xl py-8 border-2 border-[#B59A54] hover:bg-transparent hover:text-[#B59A54] disabled:opacity-50 tracking-wider"
+              >
+                Mark as Sold
+              </button>
+            ) : (
+              <div className="bg-[#0A0C10] border-2 border-[#B59A54] p-6 md:p-8 space-y-4">
+                <h2 className="display-font text-2xl text-[#B59A54]">Archive this piece</h2>
+                <p className="text-sm text-[#A1A1AA]">
+                  A sentence or two about where it ended up — who claimed it, the story, anything
+                  worth remembering. Visitors may see this on the sold listing.
+                </p>
+                <textarea
+                  rows={4}
+                  value={soldNoteDraft}
+                  onChange={(e) => setSoldNoteDraft(e.target.value)}
+                  placeholder="e.g. Found a home with a collector in Boulder — anniversary gift."
+                  className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54] resize-none"
+                />
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={confirmMarkSold}
+                    disabled={pending}
+                    className="flex-1 min-w-[10rem] bg-[#B59A54] text-black display-font text-xl py-4 hover:bg-[#d4b86a] disabled:opacity-50"
+                  >
+                    {pending ? 'Saving…' : 'Confirm sold'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSoldPromptOpen(false)}
+                    disabled={pending}
+                    className="px-6 py-4 border border-[#27272A] text-xs font-bold uppercase tracking-widest text-[#A1A1AA] hover:border-white hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="bg-[#0A0C10] border border-[#B59A54]/50 p-6 md:p-8 space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="display-font text-2xl text-[#B59A54]">Sold · archived</p>
+                <p className="text-xs text-[#71717A] mt-1 uppercase tracking-widest">
+                  Shows under sold pieces on the shop & homepage
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={markAvailableAgain}
+                disabled={pending}
+                className="text-[10px] font-bold uppercase tracking-widest border border-[#14B8A6]/50 text-[#14B8A6] px-4 py-2 hover:bg-[#14B8A6] hover:text-black disabled:opacity-50"
+              >
+                Mark available again
+              </button>
+            </div>
+            <Field label="Where it ended up">
+              <textarea
+                rows={3}
+                value={form.sold_note}
+                onChange={(e) => setForm({ ...form, sold_note: e.target.value })}
+                className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54] resize-none"
+              />
+            </Field>
           </div>
         )}
 
@@ -326,22 +475,9 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
             <label className="flex items-center gap-3 text-sm cursor-pointer">
               <input
                 type="checkbox"
-                checked={form.sold}
-                onChange={(e) => setForm({ ...form, sold: e.target.checked })}
-                className="accent-[#B59A54] w-4 h-4"
-              />
-              <span>
-                <span className="font-bold text-[#B59A54]">Sold</span>
-                <span className="text-[#71717A] block text-xs">
-                  Moves to sold strip · removed from shop
-                </span>
-              </span>
-            </label>
-            <label className="flex items-center gap-3 text-sm cursor-pointer">
-              <input
-                type="checkbox"
                 checked={form.featured}
                 onChange={(e) => setForm({ ...form, featured: e.target.checked })}
+                disabled={form.sold}
                 className="accent-[#14B8A6] w-4 h-4"
               />
               <span>
@@ -364,6 +500,7 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {form.photos.map((url, i) => (
               <div key={url} className="aspect-[4/5] relative border border-[#27272A]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={url} alt="" className="w-full h-full object-cover" />
                 <button
                   type="button"
@@ -397,7 +534,7 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
 
         <button
           type="button"
-          onClick={save}
+          onClick={() => save()}
           disabled={pending || uploading}
           className="w-full bg-[#B59A54] text-black display-font text-2xl py-6 border-2 border-[#B59A54] hover:bg-transparent hover:text-[#B59A54] disabled:opacity-50"
         >

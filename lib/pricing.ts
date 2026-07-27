@@ -54,7 +54,7 @@ export function computePriceBreakdown(
 }
 
 export function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100
+  return Math.round(value)
 }
 
 export function parseMoneyInput(raw: string): number | null {
@@ -65,29 +65,75 @@ export function parseMoneyInput(raw: string): number | null {
   return n
 }
 
+/** Shop / vault listed price — whole dollars only. */
 export function formatPiecePrice(price: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    maximumFractionDigits: price % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+  }).format(Math.round(price))
+}
+
+/** Spot / per-gram lines where cents still help. */
+export function formatMoneyPrecise(price: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
   }).format(price)
 }
 
-/** Public / admin label: inquire, or $amount. */
+/** Public shop label: Sold, inquire, or $amount. */
 export function piecePriceLabel(
   piece: {
     inquire_for_price: boolean
     price: number
     sold: boolean
+    manual_price?: boolean
     material_cost: number | null
     workmanship_cost: number | null
     silver_grams: number | null
   },
   spotPerOz: number | null
 ): string {
+  if (piece.sold) return 'Sold'
   if (piece.inquire_for_price) return 'Inquire for price'
   const amount = effectivePiecePrice(piece, spotPerOz)
   return formatPiecePrice(amount)
+}
+
+/**
+ * Admin search / hub: always prefer the formula dollar amount so Mark can quote
+ * on the phone even when the shop says Inquire.
+ */
+export function adminPiecePriceLabel(
+  piece: {
+    inquire_for_price: boolean
+    price: number
+    sold: boolean
+    manual_price?: boolean
+    material_cost: number | null
+    workmanship_cost: number | null
+    silver_grams: number | null
+  },
+  spotPerOz: number | null
+): { amount: string | null; inquire: boolean } {
+  if (piece.manual_price && piece.price > 0) {
+    return {
+      amount: formatPiecePrice(piece.price),
+      inquire: piece.inquire_for_price,
+    }
+  }
+  const hasFormula = hasPricingFormula(piece)
+  if (hasFormula || (!piece.inquire_for_price && piece.price > 0)) {
+    return {
+      amount: formatPiecePrice(effectivePiecePrice(piece, spotPerOz)),
+      inquire: piece.inquire_for_price,
+    }
+  }
+  if (piece.inquire_for_price) return { amount: null, inquire: true }
+  return { amount: formatPiecePrice(piece.price), inquire: false }
 }
 
 /**
@@ -102,13 +148,19 @@ export function effectivePiecePrice(
     inquire_for_price: boolean
     price: number
     sold: boolean
+    manual_price?: boolean
     material_cost: number | null
     workmanship_cost: number | null
     silver_grams: number | null
   },
   spotPerOz: number | null
 ): number {
-  if (piece.sold || !hasPricingFormula(piece) || spotPerOz === null) {
+  if (
+    piece.sold ||
+    piece.manual_price ||
+    !hasPricingFormula(piece) ||
+    spotPerOz === null
+  ) {
     return piece.price
   }
   return computePriceBreakdown(
@@ -131,11 +183,18 @@ export function withLivePrice<T extends {
   inquire_for_price: boolean
   price: number
   sold: boolean
+  manual_price?: boolean
   material_cost: number | null
   workmanship_cost: number | null
   silver_grams: number | null
 }>(piece: T, spotPerOz: number | null): T {
-  if (piece.inquire_for_price || piece.sold || !hasPricingFormula(piece) || spotPerOz === null) {
+  if (
+    piece.inquire_for_price ||
+    piece.sold ||
+    piece.manual_price ||
+    !hasPricingFormula(piece) ||
+    spotPerOz === null
+  ) {
     return piece
   }
   return {
@@ -155,6 +214,7 @@ export function withLivePrices<T extends {
   inquire_for_price: boolean
   price: number
   sold: boolean
+  manual_price?: boolean
   material_cost: number | null
   workmanship_cost: number | null
   silver_grams: number | null

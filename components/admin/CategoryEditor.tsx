@@ -274,7 +274,11 @@ export default function CategoryEditor({ category: initial, pieces: initialPiece
                   <div className="p-4">
                     <h3 className="display-font text-lg">{piece.title}</h3>
                     <p className="text-[#B59A54] text-sm mt-1">
-                      {piece.inquire_for_price ? 'Inquire' : `$${piece.price.toFixed(2)}`}
+                      {piece.sold
+                        ? 'Sold'
+                        : piece.inquire_for_price
+                          ? 'Inquire'
+                          : `$${piece.price.toFixed(2)}`}
                     </p>
                   </div>
                 </div>

@@ -41,7 +41,7 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
     startTransition(async () => {
       setError(null)
       setStatus(null)
-      const tagged = withPieceTag(message, pieceTitle)
+      const tagged = withPieceTag(message, pieceTitle, pieceId)
 
       if (gate === 'continue') {
         const result = await startChat({

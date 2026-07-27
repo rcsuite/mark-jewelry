@@ -25,6 +25,8 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
   const [visitorName, setVisitorName] = useState('')
   const [pieceTitle, setPieceTitle] = useState<string | null>(null)
   const [aboutPiece, setAboutPiece] = useState<string | null>(null)
+  const [aboutPieceId, setAboutPieceId] = useState<string | null>(null)
+  const [threadPieceId, setThreadPieceId] = useState<string | null>(null)
   const [markIsAway, setMarkIsAway] = useState(true)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -51,6 +53,7 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
       const ctx =
         result.data.thread.viewing_context || result.data.thread.piece_title || null
       setPieceTitle(ctx)
+      setThreadPieceId(result.data.thread.piece_id)
       setMessages(result.data.messages)
       setMarkIsAway(result.data.markIsAway)
       setError(null)
@@ -73,7 +76,9 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
       const detail = (event as CustomEvent<ChatFocusDetail>).detail
       const title = detail?.pieceTitle ?? null
       setAboutPiece(title)
+      setAboutPieceId(detail?.pieceId ?? null)
       if (title) setPieceTitle(title)
+      if (detail?.pieceId) setThreadPieceId(detail.pieceId)
       setHasSession(true)
       setOpen(true)
       setDraft('')
@@ -92,7 +97,7 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
   if (!hasSession && !open) return null
 
   const send = () => {
-    const body = withPieceTag(draft, aboutPiece)
+    const body = withPieceTag(draft, aboutPiece, aboutPieceId)
     if (!body) return
     startTransition(async () => {
       const result = await sendVisitorMessage(body)
@@ -102,6 +107,7 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
       }
       setDraft('')
       setAboutPiece(null)
+      setAboutPieceId(null)
       setMessages((prev) => [...prev, result.data!.message])
       setError(null)
     })
@@ -113,6 +119,8 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
       setHasSession(false)
       setMessages([])
       setAboutPiece(null)
+      setAboutPieceId(null)
+      setThreadPieceId(null)
       setOpen(false)
     })
   }
@@ -161,7 +169,7 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
                     : 'mr-auto bg-[#18181B] border border-[#27272A] text-[#E4E4E7]'
                 }`}
               >
-                <ChatBubbleBody body={m.body} />
+                <ChatBubbleBody body={m.body} fallbackPieceId={threadPieceId} />
               </div>
             ))}
             <div ref={bottomRef} />
@@ -171,7 +179,16 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
 
           {aboutPiece && (
             <div className="px-3 pt-2 pb-1 border-t border-[#27272A] text-right">
-              <p className="text-xs text-[#14B8A6] font-medium truncate">@{aboutPiece}</p>
+              {aboutPieceId ? (
+                <a
+                  href={`/shop/${aboutPieceId}`}
+                  className="text-xs text-[#14B8A6] font-medium truncate underline-offset-2 hover:underline hover:text-[#00F2FE] inline-block max-w-full"
+                >
+                  @{aboutPiece}
+                </a>
+              ) : (
+                <p className="text-xs text-[#14B8A6] font-medium truncate">@{aboutPiece}</p>
+              )}
               <p className="text-[11px] text-[#71717A]">What do you want to ask Mark?</p>
             </div>
           )}

@@ -61,6 +61,15 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
     [items, categories, filters]
   )
 
+  const availableItems = useMemo(
+    () => filteredItems.filter((item) => !item.sold),
+    [filteredItems]
+  )
+  const soldItems = useMemo(
+    () => filteredItems.filter((item) => item.sold),
+    [filteredItems]
+  )
+
   const detailCount = countActiveDetailFilters(filters)
 
   const applyInlineQuery = (value: string) => {
@@ -231,97 +240,22 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
         )}
         {!(filters.query || detailCount > 0) && <div className="mb-12" />}
 
-        {filteredItems.length > 0 ? (
+        {availableItems.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {filteredItems.map((item) => (
-              <div
-                key={item.id}
-                className="group bg-[#0A0C10] border border-white/5 flex flex-col h-full hover:border-[#B59A54] transition-all duration-500"
-              >
-                <div className="aspect-[4/5] bg-[#111419] relative overflow-hidden flex items-center justify-center border-b border-white/5">
-                  {item.photos[0] ? (
-                    <img
-                      src={item.photos[0]}
-                      alt={item.title}
-                      className="absolute inset-0 w-full h-full object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700"
-                    />
-                  ) : (
-                    <span className="text-xs text-white/20 display-font">[No Photo]</span>
-                  )}
-                  <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-sm border border-white/10 px-3 py-1">
-                    <span className="text-[10px] font-bold tracking-widest uppercase text-[#14B8A6]">
-                      {item.piece_type}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-6 flex flex-col flex-grow">
-                  <h4 className="text-2xl display-font text-white mb-2 group-hover:text-[#B59A54] transition-colors">
-                    {item.title}
-                  </h4>
-                  <p className="text-sm metal-oxidized mb-6 flex-grow leading-relaxed line-clamp-2">
-                    {item.description}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-2 mb-6 border-y border-[#27272A] py-4">
-                    <div>
-                      <div className="text-[9px] text-[#71717A] uppercase tracking-widest font-bold mb-1">
-                        Weight
-                      </div>
-                      <div className="text-xs text-white font-mono">
-                        {item.specs?.weight || 'N/A'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[9px] text-[#71717A] uppercase tracking-widest font-bold mb-1">
-                        Size
-                      </div>
-                      <div className="text-xs text-white font-mono">{item.specs?.size || 'N/A'}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    <div className="flex justify-between items-center gap-3">
-                      <span className="text-2xl font-bold text-white display-font tracking-wider">
-                        {item.inquire_for_price
-                          ? 'Inquire'
-                          : `$${item.price.toFixed(2)}`}
-                      </span>
-                      {item.inquire_for_price ? (
-                        <ContactTrigger
-                          pieceId={item.id}
-                          pieceTitle={item.title}
-                          className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all"
-                        >
-                          Inquire for price
-                        </ContactTrigger>
-                      ) : (
-                        <button
-                          type="button"
-                          className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all"
-                        >
-                          Acquire
-                        </button>
-                      )}
-                    </div>
-                    <ContactTrigger
-                      pieceId={item.id}
-                      pieceTitle={item.title}
-                      className="w-full text-center text-[10px] font-bold tracking-widest uppercase border border-[#14B8A6]/40 text-[#14B8A6] py-2.5 hover:bg-[#14B8A6] hover:text-black transition-all"
-                    >
-                      Inquire about this piece
-                    </ContactTrigger>
-                  </div>
-                </div>
-              </div>
+            {availableItems.map((item) => (
+              <VaultCard key={item.id} item={item} />
             ))}
           </div>
         ) : (
-          <div className="text-center py-32 border border-[#27272A] bg-[#0A0C10]">
+          <div className="text-center py-24 border border-[#27272A] bg-[#0A0C10]">
             <span className="text-5xl mb-4 block grayscale opacity-30">🕸️</span>
-            <h3 className="text-2xl display-font text-white mb-2">NO SPECIMENS FOUND</h3>
+            <h3 className="text-2xl display-font text-white mb-2">
+              {soldItems.length > 0 ? 'NO PIECES FOR SALE HERE' : 'NO SPECIMENS FOUND'}
+            </h3>
             <p className="text-[#71717A]">
-              Try adjusting your filters or searching for different specs.
+              {soldItems.length > 0
+                ? 'Everything matching these filters has already found a home — see sold below.'
+                : 'Try adjusting your filters or searching for different specs.'}
             </p>
             <button
               type="button"
@@ -331,6 +265,24 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
               Clear All Filters
             </button>
           </div>
+        )}
+
+        {soldItems.length > 0 && (
+          <section className="mt-24 pt-16 border-t border-white/10">
+            <div className="mb-10">
+              <h2 className="text-3xl md:text-4xl display-font text-white uppercase tracking-wider">
+                Sold pieces
+              </h2>
+              <p className="text-[#71717A] text-sm mt-2">
+                Archived from the forge — still part of the vault’s story.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              {soldItems.map((item) => (
+                <VaultCard key={item.id} item={item} />
+              ))}
+            </div>
+          </section>
         )}
       </main>
 
@@ -497,6 +449,111 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function VaultCard({ item }: { item: ShopPiece }) {
+  const priceLabel = item.sold
+    ? 'Sold'
+    : item.inquire_for_price
+      ? 'Inquire'
+      : `$${Math.round(item.price)}`
+
+  return (
+    <div
+      className={`group bg-[#0A0C10] border border-white/5 flex flex-col h-full hover:border-[#B59A54] transition-all duration-500 ${
+        item.sold ? 'opacity-90' : ''
+      }`}
+    >
+      <Link
+        href={`/shop/${item.id}`}
+        className="aspect-[4/5] bg-[#111419] relative overflow-hidden flex items-center justify-center border-b border-white/5"
+      >
+        {item.photos[0] ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.photos[0]}
+            alt={item.title}
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${
+              item.sold
+                ? 'grayscale opacity-70 group-hover:opacity-90'
+                : 'grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105'
+            }`}
+          />
+        ) : (
+          <span className="text-xs text-white/20 display-font">[No Photo]</span>
+        )}
+        <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-sm border border-white/10 px-3 py-1">
+          <span
+            className={`text-[10px] font-bold tracking-widest uppercase ${
+              item.sold ? 'text-[#B59A54]' : 'text-[#14B8A6]'
+            }`}
+          >
+            {item.sold ? 'Sold' : item.piece_type}
+          </span>
+        </div>
+      </Link>
+
+      <div className="p-6 flex flex-col flex-grow">
+        <Link href={`/shop/${item.id}`}>
+          <h4 className="text-2xl display-font text-white mb-2 group-hover:text-[#B59A54] transition-colors">
+            {item.title}
+          </h4>
+        </Link>
+        <p className="text-sm metal-oxidized mb-6 flex-grow leading-relaxed line-clamp-2">
+          {item.sold && item.sold_note ? item.sold_note : item.description}
+        </p>
+
+        <div className="grid grid-cols-2 gap-2 mb-6 border-y border-[#27272A] py-4">
+          <div>
+            <div className="text-[9px] text-[#71717A] uppercase tracking-widest font-bold mb-1">
+              Weight
+            </div>
+            <div className="text-xs text-white font-mono">{item.specs?.weight || 'N/A'}</div>
+          </div>
+          <div>
+            <div className="text-[9px] text-[#71717A] uppercase tracking-widest font-bold mb-1">
+              Size
+            </div>
+            <div className="text-xs text-white font-mono">{item.specs?.size || 'N/A'}</div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <div className="flex justify-between items-center gap-3">
+            <span className="text-2xl font-bold text-white display-font tracking-wider">
+              {priceLabel}
+            </span>
+            {!item.sold &&
+              (item.inquire_for_price ? (
+                <ContactTrigger
+                  pieceId={item.id}
+                  pieceTitle={item.title}
+                  className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all"
+                >
+                  Inquire for price
+                </ContactTrigger>
+              ) : (
+                <button
+                  type="button"
+                  className="accent-brass text-xs font-bold tracking-widest uppercase border border-[#B59A54]/30 px-4 py-2 hover:bg-[#B59A54] hover:text-black transition-all"
+                >
+                  Acquire
+                </button>
+              ))}
+          </div>
+          {!item.sold && (
+            <ContactTrigger
+              pieceId={item.id}
+              pieceTitle={item.title}
+              className="w-full text-center text-[10px] font-bold tracking-widest uppercase border border-[#14B8A6]/40 text-[#14B8A6] py-2.5 hover:bg-[#14B8A6] hover:text-black transition-all"
+            >
+              Inquire about this piece
+            </ContactTrigger>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

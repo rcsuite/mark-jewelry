@@ -55,7 +55,7 @@ export default function ContactModal({
     startTransition(async () => {
       setError(null)
       const ctx = viewingContext || (pieceTitle ? pieceTitle : null)
-      const tagged = withPieceTag(message, pieceTitle)
+      const tagged = withPieceTag(message, pieceTitle, pieceId)
 
       if (gate === 'continue') {
         const result = await startChat({

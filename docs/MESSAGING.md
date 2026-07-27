@@ -43,7 +43,8 @@ Visitor access is via SECURITY DEFINER RPCs (`chat_start`, `chat_fetch`,
 
 Unread email path: visitor messages get `email_due_at = now() + 2 minutes`. If Mark
 opens the thread first, the reminder is cancelled. Otherwise
-`claim_due_chat_email_reminders` + Resend send the digest.
+`claim_due_chat_email_reminders` bundles **all** unseen visitor messages in that
+thread into one digest and Resend sends it (with a link to `/admin/messages`).
 
 ## Email setup (required for phone alerts)
 
@@ -53,9 +54,10 @@ Chat works without email. Unread → phone email does **not** until env is set:
 |---|---|
 | `RESEND_API_KEY` | Resend API key |
 | `MARK_NOTIFY_EMAIL` | Address that receives alerts (Mark’s inbox) |
-| `MARK_NOTIFY_FROM` | Optional. Default: `Earthen Miners <onboarding@resend.dev>` |
+| `MARK_NOTIFY_FROM` | Optional but recommended. Verified domain From, e.g. `Earthen Miners <inquiry@earthenminersdesigns.com>`. Default: `onboarding@resend.dev` (test-only). |
 | `CRON_SECRET` | Protects `/api/cron/chat-reminders` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Cron claims due reminders server-side |
+| `SUPABASE_SERVICE_ROLE_KEY` | Cron claims due reminders server-side (required when Mark is offline) |
+| `NEXT_PUBLIC_SITE_URL` | Optional. Canonical site origin for links in emails (e.g. `https://earthenminersdesigns.com`). Falls back to Vercel URL. |
 
 - While Mark is in `/admin`, `AdminIncomingMessageAlert` also calls
   `processChatEmailReminders()` periodically.

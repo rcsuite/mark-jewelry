@@ -21,8 +21,12 @@ export type ShopPiece = {
   /** Fine silver weight used in the formula (grams). */
   silver_grams: number | null
   inquire_for_price: boolean
+  /** When true, `price` is a manual override (not live silver formula). */
+  manual_price: boolean
   photos: string[]
   description: string | null
+  /** Where the piece ended up — set when marking sold. */
+  sold_note: string | null
   tags: string[] | null
   specs: PieceSpecs | null
   created_at: string | null

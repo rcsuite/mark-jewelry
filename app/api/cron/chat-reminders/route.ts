@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { adminMessagesUrl } from '@/lib/site-url'
 
 /**
  * Processes 2-minute unread chat email reminders (Vercel Cron).
@@ -37,20 +38,71 @@ export async function GET(request: Request) {
 
   const rows = (data ?? []) as Array<{
     body: string
+    thread_id: string
     visitor_name: string
     visitor_email: string
     piece_title?: string | null
   }>
 
+  const byThread = new Map<
+    string,
+    {
+      visitor_name: string
+      visitor_email: string
+      piece_title?: string | null
+      bodies: string[]
+    }
+  >()
+
+  for (const row of rows) {
+    const existing = byThread.get(row.thread_id)
+    if (existing) {
+      existing.bodies.push(row.body)
+      continue
+    }
+    byThread.set(row.thread_id, {
+      visitor_name: row.visitor_name,
+      visitor_email: row.visitor_email,
+      piece_title: row.piece_title,
+      bodies: [row.body],
+    })
+  }
+
   const apiKey = process.env.RESEND_API_KEY
   const to = process.env.MARK_NOTIFY_EMAIL
   const from = process.env.MARK_NOTIFY_FROM || 'Earthen Miners <onboarding@resend.dev>'
+  const inboxUrl = adminMessagesUrl()
   let emailed = 0
 
   if (apiKey && to) {
-    for (const row of rows) {
-      const pieceLine = row.piece_title ? `\nPiece: ${row.piece_title}` : ''
-      const text = `Unread chat (2 min) from ${row.visitor_name} <${row.visitor_email}>${pieceLine}\n\n${row.body}\n\nReply in Admin → Messages.`
+    for (const digest of byThread.values()) {
+      const pieceLine = digest.piece_title ? `\nPiece: ${digest.piece_title}` : ''
+      const countNote =
+        digest.bodies.length > 1 ? ` (${digest.bodies.length} messages)` : ''
+      const digestText =
+        digest.bodies.length === 1
+          ? digest.bodies[0]
+          : digest.bodies
+              .map((b, i) => `— Message ${i + 1} —\n${b}`)
+              .join('\n\n')
+      const text = `Unread chat (2 min) from ${digest.visitor_name} <${digest.visitor_email}>${pieceLine}${countNote}\n\n${digestText}\n\nOpen Admin → Messages:\n${inboxUrl}`
+      const htmlParts = digest.bodies
+        .map((b, i) => {
+          const label =
+            digest.bodies.length > 1
+              ? `<p style="margin:16px 0 4px;color:#71717A;font-size:12px;">Message ${i + 1}</p>`
+              : ''
+          const safe = b
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+          return `${label}<pre style="white-space:pre-wrap;font-family:inherit;margin:0;">${safe}</pre>`
+        })
+        .join('')
+      const html = `<p>Unread chat (2 min) from <strong>${digest.visitor_name}</strong> &lt;${digest.visitor_email}&gt;${
+        digest.piece_title ? `<br/>Piece: ${digest.piece_title}` : ''
+      }</p>${htmlParts}<p style="margin-top:24px;"><a href="${inboxUrl}">Open Admin → Messages</a></p>`
+
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -60,15 +112,21 @@ export async function GET(request: Request) {
         body: JSON.stringify({
           from,
           to: [to],
-          subject: row.piece_title
-            ? `Unread chat (2 min): ${row.piece_title}`
-            : `Unread chat (2 min) from ${row.visitor_name}`,
+          subject: digest.piece_title
+            ? `Unread chat (2 min): ${digest.piece_title}${countNote}`
+            : `Unread chat (2 min) from ${digest.visitor_name}${countNote}`,
           text,
+          html,
         }),
       })
       if (res.ok) emailed += 1
     }
   }
 
-  return NextResponse.json({ ok: true, claimed: rows.length, emailed })
+  return NextResponse.json({
+    ok: true,
+    claimed: rows.length,
+    threads: byThread.size,
+    emailed,
+  })
 }

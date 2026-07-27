@@ -64,10 +64,12 @@ export function normalizePiece(row: Record<string, unknown>): ShopPiece {
     workmanship_cost: nullableNumber(row.workmanship_cost),
     silver_grams: nullableNumber(row.silver_grams),
     inquire_for_price: Boolean(row.inquire_for_price),
+    manual_price: Boolean(row.manual_price),
     photos: Array.isArray(row.photos)
       ? row.photos.filter((p): p is string => typeof p === 'string' && p.trim() !== '')
       : [],
     description: (row.description as string | null) ?? null,
+    sold_note: (row.sold_note as string | null) ?? null,
     tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
     specs: (row.specs as ShopPiece['specs']) ?? null,
     created_at: (row.created_at as string | null) ?? null,
@@ -196,6 +198,14 @@ export async function getShopInventory(): Promise<ShopPiece[]> {
 export async function getAvailableInventory(): Promise<ShopPiece[]> {
   const pieces = await getShopInventory()
   return pieces.filter((p) => !p.sold)
+}
+
+/** Public vault: for-sale plus archived sold pieces (sold sorted after). */
+export async function getVaultInventory(): Promise<ShopPiece[]> {
+  const pieces = await getShopInventory()
+  const available = pieces.filter((p) => !p.sold)
+  const sold = pieces.filter((p) => p.sold)
+  return [...available, ...sold]
 }
 
 export async function getPiecesByCategory(slug: string): Promise<ShopPiece[]> {

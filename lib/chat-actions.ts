@@ -9,6 +9,7 @@ import {
   type ChatMessage,
   type ChatThreadSummary,
 } from '@/lib/chat-types'
+import { adminMessagesUrl } from '@/lib/site-url'
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string }
 
@@ -95,27 +96,100 @@ export async function focusChatAboutPiece(input: {
   }
 }
 
+function formatMessageDigest(bodies: string[]): string {
+  if (bodies.length === 1) return bodies[0]
+  return bodies.map((b, i) => `— Message ${i + 1} —\n${b}`).join('\n\n')
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 async function notifyMarkEmail(input: {
   visitorName: string
   visitorEmail: string
-  body: string
+  /** One or more visitor messages to include in a single email. */
+  bodies: string[]
   pieceTitle?: string | null
   subjectPrefix?: string
 }): Promise<{ sent: boolean; reason?: string }> {
   const apiKey = process.env.RESEND_API_KEY
   const to = process.env.MARK_NOTIFY_EMAIL
   const from = process.env.MARK_NOTIFY_FROM || 'Earthen Miners <onboarding@resend.dev>'
+  const inboxUrl = adminMessagesUrl()
+  const bodies = input.bodies.map((b) => b.trim()).filter(Boolean)
+  if (!bodies.length) return { sent: false, reason: 'empty' }
+
+  // #region agent log
+  fetch('http://127.0.0.1:7717/ingest/32a7058b-603b-485e-8a2e-c7a23ceb7fdc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2e29f9' },
+    body: JSON.stringify({
+      sessionId: '2e29f9',
+      hypothesisId: 'A',
+      location: 'lib/chat-actions.ts:notifyMarkEmail:entry',
+      message: 'notifyMarkEmail env check',
+      data: {
+        hasApiKey: Boolean(apiKey),
+        apiKeyLen: apiKey?.length ?? 0,
+        apiKeyPrefix: apiKey?.slice(0, 3) ?? null,
+        hasTo: Boolean(to),
+        toDomain: to?.includes('@') ? to.split('@')[1] : null,
+        fromUsesDefault: !process.env.MARK_NOTIFY_FROM,
+        fromHost: from.match(/@([^>]+)/)?.[1] ?? null,
+        hasPiece: Boolean(input.pieceTitle),
+        messageCount: bodies.length,
+      },
+      timestamp: Date.now(),
+      runId: 'resend-trial',
+    }),
+  }).catch(() => {})
+  // #endregion
 
   if (!apiKey || !to) {
     console.info(
       '[chat] Mark email skipped — set RESEND_API_KEY and MARK_NOTIFY_EMAIL to enable.'
     )
+    // #region agent log
+    fetch('http://127.0.0.1:7717/ingest/32a7058b-603b-485e-8a2e-c7a23ceb7fdc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2e29f9' },
+      body: JSON.stringify({
+        sessionId: '2e29f9',
+        hypothesisId: 'A',
+        location: 'lib/chat-actions.ts:notifyMarkEmail:missing_env',
+        message: 'skipped missing env',
+        data: { reason: 'missing_env' },
+        timestamp: Date.now(),
+        runId: 'resend-trial',
+      }),
+    }).catch(() => {})
+    // #endregion
     return { sent: false, reason: 'missing_env' }
   }
 
   const pieceLine = input.pieceTitle ? `\nPiece: ${input.pieceTitle}` : ''
   const prefix = input.subjectPrefix ?? 'Chat'
-  const text = `${prefix} from ${input.visitorName} <${input.visitorEmail}>${pieceLine}\n\n${input.body}\n\nReply in Admin → Messages.`
+  const digest = formatMessageDigest(bodies)
+  const countNote =
+    bodies.length > 1 ? ` (${bodies.length} messages)` : ''
+  const text = `${prefix} from ${input.visitorName} <${input.visitorEmail}>${pieceLine}${countNote}\n\n${digest}\n\nOpen Admin → Messages:\n${inboxUrl}`
+  const htmlDigest = bodies
+    .map((b, i) => {
+      const label =
+        bodies.length > 1
+          ? `<p style="margin:16px 0 4px;color:#71717A;font-size:12px;">Message ${i + 1}</p>`
+          : ''
+      return `${label}<pre style="white-space:pre-wrap;font-family:inherit;margin:0;">${escapeHtml(b)}</pre>`
+    })
+    .join('')
+  const html = `<p>${escapeHtml(prefix)} from <strong>${escapeHtml(input.visitorName)}</strong> &lt;${escapeHtml(input.visitorEmail)}&gt;${
+    input.pieceTitle ? `<br/>Piece: ${escapeHtml(input.pieceTitle)}` : ''
+  }</p>${htmlDigest}<p style="margin-top:24px;"><a href="${escapeHtml(inboxUrl)}">Open Admin → Messages</a></p>`
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -128,19 +202,70 @@ async function notifyMarkEmail(input: {
         from,
         to: [to],
         subject: input.pieceTitle
-          ? `${prefix}: ${input.pieceTitle}`
-          : `${prefix} from ${input.visitorName}`,
+          ? `${prefix}: ${input.pieceTitle}${countNote}`
+          : `${prefix} from ${input.visitorName}${countNote}`,
         text,
+        html,
       }),
     })
     if (!res.ok) {
       const errText = await res.text()
       console.error('[chat] Resend error', res.status, errText)
+      // #region agent log
+      fetch('http://127.0.0.1:7717/ingest/32a7058b-603b-485e-8a2e-c7a23ceb7fdc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2e29f9' },
+        body: JSON.stringify({
+          sessionId: '2e29f9',
+          hypothesisId: 'B',
+          location: 'lib/chat-actions.ts:notifyMarkEmail:resend_error',
+          message: 'Resend API non-OK',
+          data: {
+            status: res.status,
+            errSnippet: errText.slice(0, 400),
+            fromHost: from.match(/@([^>]+)/)?.[1] ?? null,
+          },
+          timestamp: Date.now(),
+          runId: 'resend-trial',
+        }),
+      }).catch(() => {})
+      // #endregion
       return { sent: false, reason: 'resend_error' }
     }
+    // #region agent log
+    const okBody = await res.text()
+    fetch('http://127.0.0.1:7717/ingest/32a7058b-603b-485e-8a2e-c7a23ceb7fdc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2e29f9' },
+      body: JSON.stringify({
+        sessionId: '2e29f9',
+        hypothesisId: 'A',
+        location: 'lib/chat-actions.ts:notifyMarkEmail:success',
+        message: 'Resend accepted email',
+        data: { status: res.status, bodySnippet: okBody.slice(0, 200) },
+        timestamp: Date.now(),
+        runId: 'resend-trial',
+      }),
+    }).catch(() => {})
+    // #endregion
     return { sent: true }
   } catch (err) {
     console.error('[chat] Resend failed', err)
+    // #region agent log
+    fetch('http://127.0.0.1:7717/ingest/32a7058b-603b-485e-8a2e-c7a23ceb7fdc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2e29f9' },
+      body: JSON.stringify({
+        sessionId: '2e29f9',
+        hypothesisId: 'E',
+        location: 'lib/chat-actions.ts:notifyMarkEmail:network',
+        message: 'Resend fetch threw',
+        data: { err: err instanceof Error ? err.message : 'unknown' },
+        timestamp: Date.now(),
+        runId: 'resend-trial',
+      }),
+    }).catch(() => {})
+    // #endregion
     return { sent: false, reason: 'network' }
   }
 }
@@ -206,7 +331,7 @@ export async function startChat(input: {
       await notifyMarkEmail({
         visitorName: post.thread.visitor_name,
         visitorEmail: post.thread.visitor_email,
-        body: post.message?.body || body,
+        bodies: [post.message?.body || body],
         pieceTitle: post.thread.piece_title,
       })
     }
@@ -318,7 +443,7 @@ export async function sendVisitorMessage(body: string): Promise<ActionResult<{ m
     await notifyMarkEmail({
       visitorName: payload.thread.visitor_name,
       visitorEmail: payload.thread.visitor_email,
-      body: payload.message.body,
+      bodies: [payload.message.body],
       pieceTitle: payload.thread.piece_title,
     })
   }
@@ -503,13 +628,37 @@ export async function processChatEmailReminders(): Promise<
     piece_title?: string | null
   }>
 
-  let emailed = 0
+  const byThread = new Map<
+    string,
+    {
+      visitor_name: string
+      visitor_email: string
+      piece_title?: string | null
+      bodies: string[]
+    }
+  >()
+
   for (const row of rows) {
+    const existing = byThread.get(row.thread_id)
+    if (existing) {
+      existing.bodies.push(row.body)
+      continue
+    }
+    byThread.set(row.thread_id, {
+      visitor_name: row.visitor_name,
+      visitor_email: row.visitor_email,
+      piece_title: row.piece_title,
+      bodies: [row.body],
+    })
+  }
+
+  let emailed = 0
+  for (const digest of byThread.values()) {
     const result = await notifyMarkEmail({
-      visitorName: row.visitor_name,
-      visitorEmail: row.visitor_email,
-      body: row.body,
-      pieceTitle: row.piece_title,
+      visitorName: digest.visitor_name,
+      visitorEmail: digest.visitor_email,
+      bodies: digest.bodies,
+      pieceTitle: digest.piece_title,
       subjectPrefix: 'Unread chat (2 min)',
     })
     if (result.sent) emailed += 1

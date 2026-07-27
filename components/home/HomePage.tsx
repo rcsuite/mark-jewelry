@@ -295,9 +295,11 @@ export default function HomePage({
                       <p className="text-sm metal-oxidized mb-4 line-clamp-2">{pieceBlurb(piece)}</p>
                       <div className="flex justify-between items-baseline border-t border-white/5 pt-4">
                         <span className="text-lg font-bold text-white">
-                          {piece.inquire_for_price
-                            ? 'Inquire'
-                            : `$${piece.price.toFixed(2)}`}
+                          {piece.sold
+                            ? 'Sold'
+                            : piece.inquire_for_price
+                              ? 'Inquire'
+                              : `$${piece.price.toFixed(2)}`}
                         </span>
                         <span className="accent-brass text-[10px] font-bold tracking-widest uppercase">
                           View Specs
@@ -331,30 +333,57 @@ export default function HomePage({
       </section>
 
       {sold.length > 0 && (
-        <section className="py-20 max-w-7xl mx-auto px-6 relative z-10 border-t border-white/5">
-          <h2 className="text-3xl display-font text-white uppercase tracking-wider mb-8 text-center">
-            Recently claimed
-          </h2>
-          <div className="flex gap-4 overflow-x-auto pb-2 justify-center">
-            {sold.map((piece) => (
-              <div
-                key={piece.id}
-                className="relative shrink-0 w-24 h-24 md:w-28 md:h-28 bg-[#111419] border border-white/5 overflow-hidden grayscale opacity-80"
-                title={piece.title}
-              >
-                {piece.photos[0] ? (
-                  <img
-                    src={piece.photos[0]}
-                    alt={piece.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white/20 display-font">
-                    SOLD
-                  </span>
-                )}
+        <section className="bg-[#05070A] py-24 border-t border-white/5 relative z-10">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-12 gap-6">
+              <div>
+                <h2 className="text-4xl md:text-5xl display-font text-white uppercase tracking-wider">
+                  Sold pieces
+                </h2>
+                <p className="text-[#71717A] text-sm mt-3 max-w-lg">
+                  Claimed from the forge — still part of the story.
+                </p>
               </div>
-            ))}
+              <Link
+                href="/shop"
+                className="w-fit border border-[#B59A54]/50 text-[#B59A54] display-font tracking-[0.2em] px-8 py-3 hover:bg-[#B59A54] hover:text-black transition-colors text-sm"
+              >
+                See in The Vault
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
+              {sold.map((piece) => (
+                <Link
+                  key={piece.id}
+                  href={`/shop/${piece.id}`}
+                  className="group relative bg-[#0A0C10] border border-white/5 overflow-hidden hover:border-[#B59A54]/60 transition-colors"
+                  title={piece.title}
+                >
+                  <div className="aspect-square relative">
+                    {piece.photos[0] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={piece.photos[0]}
+                        alt={piece.title}
+                        className="w-full h-full object-cover grayscale opacity-75 group-hover:opacity-90 transition-opacity"
+                      />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white/20 display-font">
+                        SOLD
+                      </span>
+                    )}
+                    <span className="absolute bottom-2 left-2 right-2 text-[9px] font-bold tracking-widest uppercase text-[#B59A54] bg-black/70 px-2 py-1 truncate">
+                      Sold
+                    </span>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-xs text-white truncate display-font tracking-wide group-hover:text-[#B59A54]">
+                      {piece.title}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         </section>
       )}

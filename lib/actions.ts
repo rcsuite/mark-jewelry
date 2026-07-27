@@ -217,7 +217,9 @@ export type PieceUpdateInput = {
   workmanship_cost?: number | null
   silver_grams?: number | null
   inquire_for_price?: boolean
+  manual_price?: boolean
   description?: string | null
+  sold_note?: string | null
   tags?: string[]
   specs?: ShopPiece['specs']
   photos?: string[]
@@ -244,6 +246,8 @@ export async function updatePiece(input: PieceUpdateInput): Promise<ActionResult
     patch.photos = input.photos
   }
   if (input.sold !== undefined) patch.sold = input.sold
+  if (input.sold_note !== undefined) patch.sold_note = input.sold_note
+  if (input.manual_price !== undefined) patch.manual_price = input.manual_price
   if (input.featured !== undefined) {
     patch.featured = input.featured
     if (input.featured) {
@@ -272,16 +276,20 @@ export async function updatePiece(input: PieceUpdateInput): Promise<ActionResult
   if (input.inquire_for_price !== undefined) patch.inquire_for_price = input.inquire_for_price
 
   const spot = await getSilverSpotPerOz()
-  const formulaReady =
+  const pricingTouched =
     input.material_cost !== undefined ||
     input.workmanship_cost !== undefined ||
     input.silver_grams !== undefined ||
-    input.inquire_for_price !== undefined
+    input.inquire_for_price !== undefined ||
+    input.manual_price !== undefined ||
+    input.price !== undefined
 
-  if (formulaReady) {
+  if (pricingTouched) {
     const { data: existing } = await supabase
       .from('shop_inventory')
-      .select('material_cost, workmanship_cost, silver_grams, inquire_for_price, sold, price')
+      .select(
+        'material_cost, workmanship_cost, silver_grams, inquire_for_price, manual_price, sold, price'
+      )
       .eq('id', input.id)
       .maybeSingle()
 
@@ -307,6 +315,10 @@ export async function updatePiece(input: PieceUpdateInput): Promise<ActionResult
       input.inquire_for_price !== undefined
         ? input.inquire_for_price
         : Boolean(existing?.inquire_for_price)
+    const manual =
+      input.manual_price !== undefined
+        ? input.manual_price
+        : Boolean(existing?.manual_price)
     const sold = input.sold !== undefined ? input.sold : Boolean(existing?.sold)
 
     const draft = {
@@ -315,11 +327,14 @@ export async function updatePiece(input: PieceUpdateInput): Promise<ActionResult
         workmanship_cost !== null && Number.isFinite(workmanship_cost) ? workmanship_cost : null,
       silver_grams: silver_grams !== null && Number.isFinite(silver_grams) ? silver_grams : null,
       inquire_for_price: inquire,
+      manual_price: manual,
       sold,
       price: input.price ?? Number(existing?.price ?? 0),
     }
 
-    if (!inquire && !sold && hasPricingFormula(draft) && spot !== null) {
+    if (manual) {
+      if (input.price !== undefined) patch.price = input.price
+    } else if (!sold && hasPricingFormula(draft) && spot !== null) {
       patch.price = computePriceBreakdown(
         {
           materialCost: draft.material_cost!,
@@ -374,9 +389,11 @@ export async function repriceInventoryFromSpot(): Promise<
 
   const { data, error } = await supabase
     .from('shop_inventory')
-    .select('id, material_cost, workmanship_cost, silver_grams, inquire_for_price, sold, price')
+    .select(
+      'id, material_cost, workmanship_cost, silver_grams, inquire_for_price, manual_price, sold, price'
+    )
     .eq('sold', false)
-    .eq('inquire_for_price', false)
+    .eq('manual_price', false)
 
   if (error) return { ok: false, error: error.message }
 

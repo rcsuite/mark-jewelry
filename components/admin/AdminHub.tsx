@@ -5,7 +5,7 @@ import Link from 'next/link'
 import type { Category, ShopPiece } from '@/lib/types'
 import type { SilverQuote } from '@/lib/silver'
 import { matchesQuery, pieceSearchHaystack } from '@/lib/shop-search'
-import { piecePriceLabel } from '@/lib/pricing'
+import { adminPiecePriceLabel } from '@/lib/pricing'
 
 type Props = {
   pieces: ShopPiece[]
@@ -79,6 +79,7 @@ export default function AdminHub({ pieces, categories, silver }: Props) {
             ) : (
               results.map((piece) => {
                 const thumb = piece.photos[0]
+                const price = adminPiecePriceLabel(piece, silver?.pricePerOz ?? null)
                 return (
                   <li key={piece.id}>
                     <Link
@@ -104,9 +105,18 @@ export default function AdminHub({ pieces, categories, silver }: Props) {
                           {piece.featured ? ' · Featured' : ''}
                         </p>
                       </div>
-                      <p className="display-font text-lg text-[#B59A54] tabular-nums shrink-0 max-w-[7rem] text-right leading-tight">
-                        {piecePriceLabel(piece, silver?.pricePerOz ?? null)}
-                      </p>
+                      <div className="shrink-0 max-w-[7.5rem] text-right">
+                        {price.amount ? (
+                          <p className="display-font text-lg text-[#B59A54] tabular-nums leading-tight">
+                            {price.amount}
+                          </p>
+                        ) : null}
+                        {price.inquire ? (
+                          <p className="text-[9px] font-bold tracking-widest uppercase text-[#14B8A6] mt-0.5">
+                            Inquire
+                          </p>
+                        ) : null}
+                      </div>
                     </Link>
                   </li>
                 )
