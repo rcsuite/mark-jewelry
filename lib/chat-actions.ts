@@ -146,9 +146,9 @@ async function notifyMarkEmail(input: {
 }
 
 export async function startChat(input: {
-  name: string
+  /** Required for brand-new emails; omit when Continuing with an existing email. */
+  name?: string
   email: string
-  passcode: string
   mode: 'live' | 'email_only'
   message?: string
   pieceId?: string | null
@@ -162,9 +162,9 @@ export async function startChat(input: {
 > {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('chat_start', {
-    p_name: input.name,
+    p_name: input.name ?? '',
     p_email: input.email,
-    p_passcode: input.passcode || '',
+    p_passcode: '',
     p_piece_id: input.pieceId || null,
     p_piece_title: input.pieceTitle || null,
     p_mode: input.mode,

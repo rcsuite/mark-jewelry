@@ -12,12 +12,25 @@ type Props = {
   pieceTitle?: string | null
 }
 
+type Gate = 'new' | 'continue'
+type Mode = 'live' | 'email_only'
+
+const tabClass = (active: boolean) =>
+  `p-3 border text-[10px] font-bold uppercase tracking-widest transition-colors ${
+    active
+      ? 'border-[#14B8A6] bg-[#14B8A6] text-black'
+      : 'border-[#B59A54]/60 bg-[#B59A54]/25 text-[#E7D7A4] hover:bg-[#B59A54]/40'
+  }`
+
+const fieldClass =
+  'mt-2 w-full bg-[#18181B] border border-[#3F3F46] p-3 text-white caret-[#14B8A6] placeholder:text-[#71717A] outline-none focus:border-[#14B8A6]'
+
 export default function ContactForm({ pieceId, pieceTitle }: Props) {
   const router = useRouter()
+  const [gate, setGate] = useState<Gate>('new')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [passcode, setPasscode] = useState('')
-  const [mode, setMode] = useState<'live' | 'email_only'>('live')
+  const [mode, setMode] = useState<Mode>('live')
   const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -29,10 +42,27 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
       setError(null)
       setStatus(null)
       const tagged = withPieceTag(message, pieceTitle)
+
+      if (gate === 'continue') {
+        const result = await startChat({
+          email,
+          mode: 'live',
+          pieceId,
+          pieceTitle,
+        })
+        if (!result.ok) {
+          setError(result.error)
+          return
+        }
+        setOpenWidget(true)
+        setStatus('Welcome back — your conversation is open below.')
+        router.refresh()
+        return
+      }
+
       const result = await startChat({
         name,
         email,
-        passcode,
         mode,
         message: mode === 'email_only' ? tagged : tagged || undefined,
         pieceId,
@@ -52,6 +82,12 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
       router.refresh()
     })
   }
+
+  const buttonLabel = (() => {
+    if (pending) return 'Connecting…'
+    if (gate === 'continue') return 'Open my chat'
+    return mode === 'live' ? 'Start live chat' : 'Send to Mark'
+  })()
 
   return (
     <div className="min-h-screen bg-[#05070A] text-white font-sans antialiased">
@@ -102,16 +138,38 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
         )}
 
         <div className="space-y-5 bg-[#0A0C10] border border-[#27272A] p-6">
-          <label className="block">
-            <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
-              Your name
-            </span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 outline-none focus:border-[#B59A54]"
-            />
-          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setGate('new')
+                setError(null)
+              }}
+              className={tabClass(gate === 'new')}
+            >
+              New chat
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setGate('continue')
+                setMode('live')
+                setError(null)
+              }}
+              className={tabClass(gate === 'continue')}
+            >
+              Continue chat
+            </button>
+          </div>
+
+          {gate === 'new' && (
+            <label className="block">
+              <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
+                Your name
+              </span>
+              <input value={name} onChange={(e) => setName(e.target.value)} className={fieldClass} autoComplete="name" />
+            </label>
+          )}
 
           <label className="block">
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
@@ -121,70 +179,58 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 outline-none focus:border-[#B59A54]"
+              className={fieldClass}
+              autoComplete="email"
+              placeholder="you@example.com"
             />
+            <span className="block text-[11px] text-[#A1A1AA] mt-2">
+              Same email always reopens your conversation with Mark — no password.
+            </span>
           </label>
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setMode('live')}
-              className={`p-3 border text-[10px] font-bold uppercase tracking-widest ${
-                mode === 'live'
-                  ? 'border-[#14B8A6] bg-[#14B8A6]/15 text-white'
-                  : 'border-[#27272A] text-[#71717A]'
-              }`}
-            >
-              Live chat
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('email_only')}
-              className={`p-3 border text-[10px] font-bold uppercase tracking-widest ${
-                mode === 'email_only'
-                  ? 'border-[#14B8A6] bg-[#14B8A6]/15 text-white'
-                  : 'border-[#27272A] text-[#71717A]'
-              }`}
-            >
-              Email Mark
-            </button>
-          </div>
+          {gate === 'new' && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setMode('live')}
+                className={tabClass(mode === 'live')}
+              >
+                Live chat
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('email_only')}
+                className={tabClass(mode === 'email_only')}
+              >
+                Email Mark
+              </button>
+            </div>
+          )}
 
-          {mode === 'live' && (
+          {gate === 'new' && (
             <label className="block">
               <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
-                Create a password
+                {mode === 'email_only' ? 'Your message' : 'First question (optional)'}
               </span>
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={passcode}
-                onChange={(e) => setPasscode(e.target.value)}
-                className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 outline-none focus:border-[#B59A54]"
-                placeholder="At least 6 characters"
+              <textarea
+                rows={4}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className={`${fieldClass} resize-none`}
+                placeholder={
+                  mode === 'email_only'
+                    ? 'What should Mark know?'
+                    : 'What do you want to ask Mark?'
+                }
               />
-              <span className="block text-[11px] text-[#71717A] mt-2">
-                Come back later with the same email + password to open this conversation again.
-              </span>
             </label>
           )}
 
-          <label className="block">
-            <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
-              {mode === 'email_only' ? 'Your message' : 'First question (optional)'}
-            </span>
-            <textarea
-              rows={4}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 outline-none focus:border-[#B59A54] resize-none"
-              placeholder={
-                mode === 'email_only'
-                  ? 'What should Mark know?'
-                  : 'What do you want to ask Mark?'
-              }
-            />
-          </label>
+          {gate === 'continue' && (
+            <p className="text-[12px] text-[#A1A1AA] leading-relaxed">
+              Enter the email you used before. We’ll open that thread.
+            </p>
+          )}
 
           <button
             type="button"
@@ -192,7 +238,7 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
             disabled={pending}
             className="w-full py-4 bg-[#B59A54] text-black display-font tracking-widest disabled:opacity-50"
           >
-            {pending ? 'Connecting…' : mode === 'live' ? 'Start live chat' : 'Send to Mark'}
+            {buttonLabel}
           </button>
         </div>
       </div>

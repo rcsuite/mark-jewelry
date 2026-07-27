@@ -6,8 +6,13 @@ How Contact / Inquire / Admin Messages work, and what must be configured for ema
 
 - Contact is an **in-page popup** (`ContactProvider` + `ContactModal`), not a full
   page interrupt. `/contact` redirects into `?contact=1`.
-- Visitors pick **live chat** (email + a passcode for this site only — not Supabase
-  Auth, so they never get `/admin`) or **email-only**.
+- Contact popup tabs: **New chat** (name + email + live/email-only) or **Continue
+  chat** (email only). Selected tab = teal fill; unselected = mustard so they stand out.
+- **Same email = same thread.** No visitor password. `chat_threads.visitor_email` is the
+  key; typing that email (New or Continue) reopens the conversation. Same browser also
+  keeps cookies ~400 days. Visitors are still not Supabase Auth users (no `/admin`).
+- Tradeoff: anyone who knows a visitor’s email can open that chat — acceptable for this
+  one-artisan shop; don’t use for sensitive customer data.
 - **Inquire about this piece** passes `pieceId` / `pieceTitle`. If they already have
   a chat session cookie, signup is skipped and the chat focuses that piece.
 - Composer helper (above the input): `@Piece Title` + “What do you want to ask Mark?”

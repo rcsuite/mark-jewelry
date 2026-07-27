@@ -14,6 +14,19 @@ type Props = {
   onEmailSent: () => void
 }
 
+type Gate = 'new' | 'continue'
+type Mode = 'live' | 'email_only'
+
+const tabClass = (active: boolean) =>
+  `p-3 border text-[10px] font-bold uppercase tracking-widest transition-colors ${
+    active
+      ? 'border-[#14B8A6] bg-[#14B8A6] text-black'
+      : 'border-[#B59A54]/60 bg-[#B59A54]/25 text-[#E7D7A4] hover:bg-[#B59A54]/40'
+  }`
+
+const fieldClass =
+  'mt-2 w-full bg-[#18181B] border border-[#3F3F46] p-3 text-white caret-[#14B8A6] placeholder:text-[#71717A] outline-none focus:border-[#14B8A6]'
+
 export default function ContactModal({
   pieceId,
   pieceTitle,
@@ -22,10 +35,10 @@ export default function ContactModal({
   onLiveChatStarted,
   onEmailSent,
 }: Props) {
+  const [gate, setGate] = useState<Gate>('new')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [passcode, setPasscode] = useState('')
-  const [mode, setMode] = useState<'live' | 'email_only'>('live')
+  const [mode, setMode] = useState<Mode>('live')
   const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -41,15 +54,28 @@ export default function ContactModal({
   const submit = () => {
     startTransition(async () => {
       setError(null)
-      const ctx =
-        viewingContext ||
-        (pieceTitle ? pieceTitle : null)
+      const ctx = viewingContext || (pieceTitle ? pieceTitle : null)
       const tagged = withPieceTag(message, pieceTitle)
+
+      if (gate === 'continue') {
+        const result = await startChat({
+          email,
+          mode: 'live',
+          pieceId,
+          pieceTitle,
+          viewingContext: ctx,
+        })
+        if (!result.ok) {
+          setError(result.error)
+          return
+        }
+        onLiveChatStarted()
+        return
+      }
 
       const result = await startChat({
         name,
         email,
-        passcode,
         mode,
         message: mode === 'email_only' ? tagged : tagged || undefined,
         pieceId,
@@ -67,6 +93,12 @@ export default function ContactModal({
       onLiveChatStarted()
     })
   }
+
+  const buttonLabel = (() => {
+    if (pending) return 'Connecting…'
+    if (gate === 'continue') return 'Open my chat'
+    return mode === 'live' ? 'Start live chat' : 'Send to Mark'
+  })()
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6">
@@ -115,17 +147,44 @@ export default function ContactModal({
             </div>
           )}
 
-          <label className="block">
-            <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
-              Your name
-            </span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 outline-none focus:border-[#B59A54]"
-              autoFocus
-            />
-          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setGate('new')
+                setError(null)
+              }}
+              className={tabClass(gate === 'new')}
+            >
+              New chat
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setGate('continue')
+                setMode('live')
+                setError(null)
+              }}
+              className={tabClass(gate === 'continue')}
+            >
+              Continue chat
+            </button>
+          </div>
+
+          {gate === 'new' && (
+            <label className="block">
+              <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
+                Your name
+              </span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={fieldClass}
+                autoFocus
+                autoComplete="name"
+              />
+            </label>
+          )}
 
           <label className="block">
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
@@ -135,62 +194,54 @@ export default function ContactModal({
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 outline-none focus:border-[#B59A54]"
+              className={fieldClass}
+              autoFocus={gate === 'continue'}
+              autoComplete="email"
+              placeholder="you@example.com"
             />
+            <span className="block text-[11px] text-[#A1A1AA] mt-2">
+              Same email always reopens your conversation with Mark — no password.
+            </span>
           </label>
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setMode('live')}
-              className={`p-3 border text-[10px] font-bold uppercase tracking-widest ${
-                mode === 'live'
-                  ? 'border-[#14B8A6] bg-[#14B8A6]/15 text-white'
-                  : 'border-[#27272A] text-[#71717A]'
-              }`}
-            >
-              Live chat
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('email_only')}
-              className={`p-3 border text-[10px] font-bold uppercase tracking-widest ${
-                mode === 'email_only'
-                  ? 'border-[#14B8A6] bg-[#14B8A6]/15 text-white'
-                  : 'border-[#27272A] text-[#71717A]'
-              }`}
-            >
-              Email Mark
-            </button>
-          </div>
+          {gate === 'new' && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setMode('live')}
+                className={tabClass(mode === 'live')}
+              >
+                Live chat
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('email_only')}
+                className={tabClass(mode === 'email_only')}
+              >
+                Email Mark
+              </button>
+            </div>
+          )}
 
-          {mode === 'live' && (
+          {gate === 'new' && (
             <label className="block">
               <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
-                Create a password
+                {mode === 'email_only' ? 'Your message' : 'First question (optional)'}
               </span>
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={passcode}
-                onChange={(e) => setPasscode(e.target.value)}
-                className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 outline-none focus:border-[#B59A54]"
-                placeholder="At least 6 characters"
+              <textarea
+                rows={3}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className={`${fieldClass} resize-none`}
               />
             </label>
           )}
 
-          <label className="block">
-            <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
-              {mode === 'email_only' ? 'Your message' : 'First question (optional)'}
-            </span>
-            <textarea
-              rows={3}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 outline-none focus:border-[#B59A54] resize-none"
-            />
-          </label>
+          {gate === 'continue' && (
+            <p className="text-[12px] text-[#A1A1AA] leading-relaxed">
+              Enter the email you used before. We’ll open that thread.
+            </p>
+          )}
 
           <button
             type="button"
@@ -198,7 +249,7 @@ export default function ContactModal({
             disabled={pending}
             className="w-full py-4 bg-[#B59A54] text-black display-font tracking-widest disabled:opacity-50"
           >
-            {pending ? 'Connecting…' : mode === 'live' ? 'Start live chat' : 'Send to Mark'}
+            {buttonLabel}
           </button>
 
           <p className="text-center text-[11px] text-[#52525B]">
