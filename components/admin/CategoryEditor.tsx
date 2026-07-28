@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import Cropper, { Area } from 'react-easy-crop'
 import { PencilButton, SortableList } from '@/components/admin/SortableList'
 import { reorderPieces, updateCategory } from '@/lib/actions'
@@ -19,6 +20,7 @@ type Props = {
 }
 
 export default function CategoryEditor({ category: initial, pieces: initialPieces }: Props) {
+  const router = useRouter()
   const [category, setCategory] = useState(initial)
   const [pieces, setPieces] = useState(initialPieces)
   const [title, setTitle] = useState(initial.title)
@@ -57,8 +59,7 @@ export default function CategoryEditor({ category: initial, pieces: initialPiece
         flash(result.error, true)
         return
       }
-      setCategory(result.data!)
-      flash('Category details saved.')
+      router.push(`/admin?saved=${encodeURIComponent('Category details saved.')}`)
     })
   }
 

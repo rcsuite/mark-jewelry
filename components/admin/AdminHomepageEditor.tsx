@@ -94,11 +94,15 @@ export default function AdminHomepageEditor({
 
   useEffect(() => {
     if (!savedOverlay) return
+    const timer = window.setTimeout(() => setSavedOverlay(null), 2000)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setSavedOverlay(null)
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [savedOverlay])
 
   useEffect(() => {
@@ -337,6 +341,14 @@ export default function AdminHomepageEditor({
             .accent-brass { color: #B59A54; }
             .labradorite-flash { color: #00F2FE; }
             .labradorite-teal { color: #14B8A6; }
+            @keyframes fuel-drain {
+              from { transform: scaleX(1); }
+              to { transform: scaleX(0); }
+            }
+            .fuel-drain {
+              transform-origin: left center;
+              animation: fuel-drain 2s linear forwards;
+            }
           `,
         }}
       />
@@ -1028,33 +1040,20 @@ export default function AdminHomepageEditor({
 
       {savedOverlay && (
         <div
-          className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="piece-saved-title"
+          key={savedOverlay}
+          role="status"
+          aria-live="polite"
+          onClick={dismissSavedOverlay}
+          className="fixed top-20 right-4 z-[90] w-[min(20rem,calc(100vw-2rem))] bg-[#0A0C10] border border-[#27272A] shadow-2xl cursor-pointer"
         >
-          <button
-            type="button"
-            className="absolute inset-0"
-            aria-label="Dismiss"
-            onClick={dismissSavedOverlay}
-          />
-          <div className="relative bg-[#0A0C10] border border-[#27272A] p-8 max-w-md w-full shadow-2xl">
-            <div className="absolute top-0 left-0 w-full h-1 bg-[#14B8A6]" />
-            <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6] mb-3">
+          <div className="px-4 pt-3 pb-2.5">
+            <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#B59A54] mb-1">
               Saved
             </p>
-            <h2 id="piece-saved-title" className="text-3xl display-font text-white mb-3">
-              Got it.
-            </h2>
-            <p className="text-[#A1A1AA] text-sm leading-relaxed mb-8">{savedOverlay}</p>
-            <button
-              type="button"
-              onClick={dismissSavedOverlay}
-              className="w-full bg-[#14B8A6] text-black display-font text-xl py-4 border-2 border-[#14B8A6] hover:bg-transparent hover:text-[#14B8A6]"
-            >
-              Back to editing
-            </button>
+            <p className="text-sm text-white leading-snug">{savedOverlay}</p>
+          </div>
+          <div className="h-1 w-full bg-[#27272A]" aria-hidden>
+            <div className="h-full w-full bg-[#B59A54] fuel-drain" />
           </div>
         </div>
       )}
