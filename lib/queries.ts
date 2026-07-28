@@ -9,8 +9,47 @@ import type {
   MarkMoment,
   Review,
   ShopPiece,
+  SiteSettings,
   VideoSession,
 } from '@/lib/types'
+
+export const DEFAULT_SITE_SETTINGS: SiteSettings = {
+  handiworks_display_count: 4,
+  sold_display_count: 12,
+}
+
+function clampDisplayCount(n: unknown, fallback: number): number {
+  const v = Number(n)
+  if (!Number.isFinite(v)) return fallback
+  return Math.min(48, Math.max(1, Math.round(v)))
+}
+
+export async function getSiteSettings(): Promise<SiteSettings> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('site_settings')
+    .select('handiworks_display_count, sold_display_count')
+    .eq('id', 1)
+    .maybeSingle()
+
+  if (error) {
+    console.error('getSiteSettings:', error.message)
+    return { ...DEFAULT_SITE_SETTINGS }
+  }
+
+  if (!data) return { ...DEFAULT_SITE_SETTINGS }
+
+  return {
+    handiworks_display_count: clampDisplayCount(
+      data.handiworks_display_count,
+      DEFAULT_SITE_SETTINGS.handiworks_display_count
+    ),
+    sold_display_count: clampDisplayCount(
+      data.sold_display_count,
+      DEFAULT_SITE_SETTINGS.sold_display_count
+    ),
+  }
+}
 
 export async function getCategories(): Promise<Category[]> {
   const supabase = await createClient()
@@ -266,19 +305,19 @@ export async function getCategoryBySlug(slug: string): Promise<Category | null> 
   return data ? toCategory(data as Record<string, unknown>) : null
 }
 
-/** Homepage Available Handiworks strip. */
-export async function getFeaturedInventory(limit = 8): Promise<ShopPiece[]> {
+/** Featured Available Handiworks (ordered). Pass limit for public homepage. */
+export async function getFeaturedInventory(limit?: number): Promise<ShopPiece[]> {
   const supabase = await createClient()
-  const [{ data, error }, spot] = await Promise.all([
-    supabase
-      .from('shop_inventory')
-      .select('*')
-      .eq('featured', true)
-      .eq('sold', false)
-      .order('featured_sort_order', { ascending: true })
-      .limit(limit),
-    getSilverSpotPerOz(),
-  ])
+  let query = supabase
+    .from('shop_inventory')
+    .select('*')
+    .eq('featured', true)
+    .eq('sold', false)
+    .order('featured_sort_order', { ascending: true })
+
+  if (limit !== undefined) query = query.limit(limit)
+
+  const [{ data, error }, spot] = await Promise.all([query, getSilverSpotPerOz()])
 
   if (error) {
     console.error('getFeaturedInventory:', error.message)
@@ -291,15 +330,18 @@ export async function getFeaturedInventory(limit = 8): Promise<ShopPiece[]> {
   )
 }
 
-/** Homepage sold strip. */
-export async function getSoldInventory(limit = 12): Promise<ShopPiece[]> {
+/** Sold strip (ordered by sort_order). Pass limit for public homepage. */
+export async function getSoldInventory(limit?: number): Promise<ShopPiece[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  let query = supabase
     .from('shop_inventory')
     .select('*')
     .eq('sold', true)
     .order('sort_order', { ascending: true })
-    .limit(limit)
+
+  if (limit !== undefined) query = query.limit(limit)
+
+  const { data, error } = await query
 
   if (error) {
     console.error('getSoldInventory:', error.message)

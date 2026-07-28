@@ -7,6 +7,7 @@ import {
   getCurrentBuild,
   getFeaturedInventory,
   getReviews,
+  getSiteSettings,
   getSoldInventory,
   isBuildActive,
 } from '@/lib/queries'
@@ -14,13 +15,14 @@ import {
 export const dynamic = 'force-dynamic'
 
 export default async function AdminDashboard() {
-  const [build, categories, reviews, featured, sold, available] = await Promise.all([
+  const [build, categories, reviews, featured, sold, available, settings] = await Promise.all([
     getCurrentBuild(),
     getCategories(),
     getReviews(),
-    getFeaturedInventory(12),
-    getSoldInventory(24),
+    getFeaturedInventory(),
+    getSoldInventory(),
     getAvailableInventory(),
+    getSiteSettings(),
   ])
 
   return (
@@ -35,6 +37,7 @@ export default async function AdminDashboard() {
         featured={featured}
         sold={sold}
         availableForFeature={available}
+        settings={settings}
       />
     </>
   )

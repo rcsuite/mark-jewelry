@@ -126,9 +126,6 @@ export default function ContactModal({
               <h2 id="contact-modal-title" className="display-font text-2xl text-white">
                 Contact Mark
               </h2>
-              <p className="text-[#71717A] text-sm mt-1">
-                Stay on this page — submit and keep shopping.
-              </p>
             </div>
             <button
               type="button"

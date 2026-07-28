@@ -86,3 +86,9 @@ export type MarkMoment = {
   sort_order: number
   created_at: string | null
 }
+
+/** Singleton homepage display knobs (`site_settings` id = 1). */
+export type SiteSettings = {
+  handiworks_display_count: number
+  sold_display_count: number
+}

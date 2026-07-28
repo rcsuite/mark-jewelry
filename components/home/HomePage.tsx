@@ -14,6 +14,10 @@ type HomePageProps = {
   categories: Category[]
   reviews: Review[]
   sold: ShopPiece[]
+  handiworksDisplayCount: number
+  soldDisplayCount: number
+  availableCount: number
+  soldTotalCount: number
 }
 
 function pieceBlurb(piece: ShopPiece): string {
@@ -34,7 +38,13 @@ export default function HomePage({
   categories,
   reviews,
   sold,
+  handiworksDisplayCount,
+  soldDisplayCount,
+  availableCount,
+  soldTotalCount,
 }: HomePageProps) {
+  const showHandiworksMore = availableCount > handiworksDisplayCount
+  const showSoldMore = soldTotalCount > soldDisplayCount
   const [slideIndex, setSlideIndex] = useState(0)
 
   useEffect(() => {
@@ -255,16 +265,10 @@ export default function HomePage({
 
       <section className="bg-[#0A0C10] py-24 border-y border-white/5 relative z-10">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-16 gap-6">
+          <div className="mb-16">
             <h2 className="text-4xl md:text-5xl display-font text-white uppercase tracking-wider">
               Available Handiworks
             </h2>
-            <Link
-              href="/shop"
-              className="w-fit border border-[#B59A54] text-[#B59A54] display-font tracking-[0.2em] px-8 py-3 hover:bg-[#B59A54] hover:text-black transition-colors text-sm"
-            >
-              Shop Entire Forge
-            </Link>
           </div>
 
           {featured.length > 0 ? (
@@ -330,6 +334,17 @@ export default function HomePage({
               </Link>
             </div>
           )}
+
+          {showHandiworksMore && (
+            <div className="mt-10 flex justify-center">
+              <Link
+                href="/shop"
+                className="border border-[#B59A54] text-[#B59A54] display-font tracking-[0.2em] px-10 py-4 hover:bg-[#B59A54] hover:text-black transition-colors text-sm"
+              >
+                See more in The Vault →
+              </Link>
+            </div>
+          )}
         </div>
       </section>
 
@@ -345,12 +360,6 @@ export default function HomePage({
                   Claimed from the forge — still part of the story.
                 </p>
               </div>
-              <Link
-                href="/shop"
-                className="w-fit border border-[#B59A54]/50 text-[#B59A54] display-font tracking-[0.2em] px-8 py-3 hover:bg-[#B59A54] hover:text-black transition-colors text-sm"
-              >
-                See in The Vault
-              </Link>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
               {sold.map((piece) => (
@@ -385,6 +394,16 @@ export default function HomePage({
                 </Link>
               ))}
             </div>
+            {showSoldMore && (
+              <div className="mt-10 flex justify-center">
+                <Link
+                  href="/shop"
+                  className="border border-[#B59A54]/50 text-[#B59A54] display-font tracking-[0.2em] px-10 py-4 hover:bg-[#B59A54] hover:text-black transition-colors text-sm"
+                >
+                  See more in The Vault →
+                </Link>
+              </div>
+            )}
           </div>
         </section>
       )}

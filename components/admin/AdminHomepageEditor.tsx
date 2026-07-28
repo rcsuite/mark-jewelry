@@ -8,9 +8,11 @@ import {
   deleteReview,
   reorderCategories,
   reorderFeatured,
+  reorderPieces,
   reorderReviews,
   setPieceFeatured,
   updateHomepageBanner,
+  updateHomepageDisplayCounts,
   upsertReview,
 } from '@/lib/actions'
 import { PencilButton, SortableList } from '@/components/admin/SortableList'
@@ -20,7 +22,7 @@ import { CROP_ASPECT_OPTIONS } from '@/lib/crop-aspect'
 import { FORGE_IMAGES_BUCKET, uploadImageBlob } from '@/lib/upload-image'
 import { CATEGORY_GRID_CLASS, categoryItemWidthClass } from '@/lib/category-layout'
 import { resolveHeroBannerUrl } from '@/lib/hero'
-import type { Category, CurrentBuild, HeroSlide, Review, ShopPiece } from '@/lib/types'
+import type { Category, CurrentBuild, HeroSlide, Review, ShopPiece, SiteSettings } from '@/lib/types'
 
 const supabase = createClient()
 
@@ -33,6 +35,7 @@ type Props = {
   featured: ShopPiece[]
   sold: ShopPiece[]
   availableForFeature: ShopPiece[]
+  settings: SiteSettings
 }
 
 export default function AdminHomepageEditor({
@@ -41,15 +44,18 @@ export default function AdminHomepageEditor({
   categories: initialCategories,
   reviews: initialReviews,
   featured: initialFeatured,
-  sold,
+  sold: initialSold,
   availableForFeature,
   forgeActive,
+  settings: initialSettings,
 }: Props) {
   const [bannerUrl, setBannerUrl] = useState(resolveHeroBannerUrl(build?.hero_image))
   const [slides, setSlides] = useState(initialSlides)
   const [categories, setCategories] = useState(initialCategories)
   const [reviews, setReviews] = useState(initialReviews)
   const [featured, setFeatured] = useState(initialFeatured)
+  const [sold, setSold] = useState(initialSold)
+  const [settings, setSettings] = useState(initialSettings)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -119,6 +125,35 @@ export default function AdminHomepageEditor({
       const result = await reorderFeatured(next.map((p) => p.id))
       if (!result.ok) flash(result.error, true)
       else flash('Handiworks order saved.')
+    })
+  }
+
+  const persistSoldOrder = (next: ShopPiece[]) => {
+    setSold(next)
+    startTransition(async () => {
+      const result = await reorderPieces(next.map((p) => p.id))
+      if (!result.ok) flash(result.error, true)
+      else flash('Sold order saved.')
+    })
+  }
+
+  const saveDisplayCount = (
+    field: 'handiworks_display_count' | 'sold_display_count',
+    raw: string
+  ) => {
+    const n = Number(raw)
+    if (!Number.isFinite(n) || n < 1) {
+      flash('Display count must be at least 1.', true)
+      return
+    }
+    startTransition(async () => {
+      const result = await updateHomepageDisplayCounts({ [field]: n })
+      if (!result.ok) {
+        flash(result.error, true)
+        return
+      }
+      setSettings(result.data!)
+      flash('Display count saved.')
     })
   }
 
@@ -264,6 +299,9 @@ export default function AdminHomepageEditor({
   const homepageCategories = categories.filter((c) => c.show_on_homepage)
   const displaySlides =
     slides.length > 0 ? slides : [{ url: bannerUrl, label: 'AWAITING NEXT IGNITION' }]
+  const poolNotFeatured = availableForFeature.filter((p) => !featured.some((f) => f.id === p.id))
+  const handiworksShowMore = availableForFeature.length > settings.handiworks_display_count
+  const soldShowMore = sold.length > settings.sold_display_count
 
   return (
     <div className="min-h-screen bg-[#05070A] text-[#E0E6ED] font-sans antialiased">
@@ -521,105 +559,257 @@ export default function AdminHomepageEditor({
       {/* Handiworks */}
       <section className="bg-[#0A0C10] py-24 border-y border-white/5">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-16 gap-6">
-            <h2 className="text-4xl md:text-5xl display-font text-white uppercase tracking-wider">
-              Available Handiworks
-            </h2>
-            <button
-              type="button"
-              onClick={() => setPickingFeatured(true)}
-              className="w-fit border border-[#B59A54] text-[#B59A54] display-font tracking-widest text-sm px-6 py-3 hover:bg-[#B59A54] hover:text-black"
-            >
-              + Feature a piece
-            </button>
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between mb-10 gap-6">
+            <div>
+              <h2 className="text-4xl md:text-5xl display-font text-white uppercase tracking-wider">
+                Available Handiworks
+              </h2>
+              <p className="text-[#71717A] text-sm mt-3 max-w-xl">
+                Drag featured pieces to set homepage order. First{' '}
+                {settings.handiworks_display_count} show on the public site
+                {featured.length > settings.handiworks_display_count
+                  ? ` (${featured.length - settings.handiworks_display_count} stay in the pool after “See more”).`
+                  : '.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-end gap-4">
+              <label className="block">
+                <span className="block text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6] mb-2">
+                  # of pieces to display
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={48}
+                  defaultValue={settings.handiworks_display_count}
+                  key={`hw-${settings.handiworks_display_count}`}
+                  onBlur={(e) => saveDisplayCount('handiworks_display_count', e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur()
+                    }
+                  }}
+                  className="w-24 bg-[#05070A] border border-[#27272A] focus:border-[#14B8A6] p-3 text-white outline-none tabular-nums"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setPickingFeatured(true)}
+                className="w-fit border border-[#B59A54] text-[#B59A54] display-font tracking-widest text-sm px-6 py-3 hover:bg-[#B59A54] hover:text-black"
+              >
+                + Feature a piece
+              </button>
+            </div>
           </div>
 
           {featured.length === 0 ? (
-            <p className="text-[#71717A] text-sm display-font tracking-widest">
-              No featured pieces yet — add one from the vault.
+            <p className="text-[#71717A] text-sm display-font tracking-widest mb-8">
+              No featured pieces yet — pick from the vault pool below.
             </p>
           ) : (
             <SortableList
               items={featured}
               onReorder={persistFeaturedOrder}
-              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8"
-              renderItem={(piece, { isDragging, dragHandleProps }) => (
-                <div
-                  {...dragHandleProps}
-                  className={`relative group bg-[#05070A] border cursor-grab active:cursor-grabbing ${
-                    isDragging ? 'border-[#00F2FE] opacity-60' : 'border-white/5 hover:border-[#14B8A6]'
-                  }`}
-                >
-                  <PencilButton
-                    href={`/admin/homepage/pieces/${piece.id}`}
-                    label={`Edit ${piece.title}`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeFromFeatured(piece.id)}
-                    className="absolute top-3 left-3 z-20 text-[9px] font-bold tracking-widest uppercase bg-black/80 border border-[#27272A] text-[#A1A1AA] px-2 py-1 hover:border-red-500 hover:text-red-400"
+              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-10"
+              renderItem={(piece, { isDragging, dragHandleProps }) => {
+                const idx = featured.findIndex((p) => p.id === piece.id)
+                const onHomepage = idx >= 0 && idx < settings.handiworks_display_count
+                return (
+                  <div
+                    {...dragHandleProps}
+                    className={`relative group bg-[#05070A] border cursor-grab active:cursor-grabbing ${
+                      isDragging
+                        ? 'border-[#00F2FE] opacity-60'
+                        : onHomepage
+                          ? 'border-[#14B8A6]/50 hover:border-[#14B8A6]'
+                          : 'border-white/5 opacity-70 hover:border-[#14B8A6]'
+                    }`}
                   >
-                    Unfeature
-                  </button>
-                  <div className="aspect-square bg-[#111419] border-b border-white/5 relative overflow-hidden flex items-center justify-center">
-                    {piece.photos[0] ? (
-                      <img
-                        src={piece.photos[0]}
-                        alt={piece.title}
-                        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-                      />
-                    ) : (
-                      <span className="text-xs text-white/20 display-font">[No Photo]</span>
+                    <PencilButton
+                      href={`/admin/homepage/pieces/${piece.id}`}
+                      label={`Edit ${piece.title}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeFromFeatured(piece.id)}
+                      className="absolute top-3 left-3 z-20 text-[9px] font-bold tracking-widest uppercase bg-black/80 border border-[#27272A] text-[#A1A1AA] px-2 py-1 hover:border-red-500 hover:text-red-400"
+                    >
+                      Unfeature
+                    </button>
+                    {!onHomepage && (
+                      <span className="absolute bottom-3 left-3 z-20 text-[8px] font-bold tracking-widest uppercase bg-black/80 border border-[#27272A] text-[#71717A] px-2 py-1">
+                        After See more
+                      </span>
                     )}
-                  </div>
-                  <div className="p-6">
-                    <h4 className="text-xl display-font text-white mb-2">{piece.title}</h4>
-                    <div className="flex justify-between items-baseline border-t border-white/5 pt-4">
-                      <span className="text-lg font-bold text-white">
-                        {piece.inquire_for_price ? 'Inquire' : `$${piece.price.toFixed(2)}`}
-                      </span>
-                      <span className="accent-brass text-[10px] font-bold tracking-widest uppercase">
-                        View Specs
-                      </span>
+                    <div className="aspect-square bg-[#111419] border-b border-white/5 relative overflow-hidden flex items-center justify-center">
+                      {piece.photos[0] ? (
+                        <img
+                          src={piece.photos[0]}
+                          alt={piece.title}
+                          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                        />
+                      ) : (
+                        <span className="text-xs text-white/20 display-font">[No Photo]</span>
+                      )}
+                    </div>
+                    <div className="p-6">
+                      <h4 className="text-xl display-font text-white mb-2">{piece.title}</h4>
+                      <div className="flex justify-between items-baseline border-t border-white/5 pt-4">
+                        <span className="text-lg font-bold text-white">
+                          {piece.inquire_for_price ? 'Inquire' : `$${piece.price.toFixed(2)}`}
+                        </span>
+                        <span className="accent-brass text-[10px] font-bold tracking-widest uppercase">
+                          #{idx + 1}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )
+              }}
             />
+          )}
+
+          {poolNotFeatured.length > 0 && (
+            <div className="border-t border-white/10 pt-10">
+              <h3 className="display-font text-xl text-white mb-2">Vault pool</h3>
+              <p className="text-[#71717A] text-xs mb-6 uppercase tracking-widest">
+                All for-sale pieces not yet featured — tap to add to Available Handiworks
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {poolNotFeatured.map((piece) => (
+                  <button
+                    key={piece.id}
+                    type="button"
+                    onClick={() => addToFeatured(piece)}
+                    className="relative group bg-[#05070A] border border-white/5 hover:border-[#14B8A6] text-left overflow-hidden"
+                  >
+                    <div className="aspect-square bg-[#111419] relative">
+                      {piece.photos[0] ? (
+                        <img
+                          src={piece.photos[0]}
+                          alt=""
+                          className="w-full h-full object-cover opacity-80 group-hover:opacity-100"
+                        />
+                      ) : (
+                        <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white/20 display-font">
+                          No photo
+                        </span>
+                      )}
+                      <span className="absolute inset-x-0 bottom-0 bg-black/70 text-[9px] text-center py-1 tracking-widest uppercase text-[#14B8A6]">
+                        + Feature
+                      </span>
+                    </div>
+                    <p className="p-2 text-xs display-font text-white truncate">{piece.title}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {handiworksShowMore && (
+            <div className="mt-10 flex justify-center">
+              <Link
+                href="/shop"
+                className="border border-[#B59A54] text-[#B59A54] display-font tracking-widest text-sm px-8 py-3 hover:bg-[#B59A54] hover:text-black"
+              >
+                See more → /shop
+              </Link>
+            </div>
           )}
         </div>
       </section>
 
       {/* Sold strip */}
       <section className="py-20 max-w-7xl mx-auto px-6">
-        <h2 className="text-3xl display-font text-white uppercase tracking-wider mb-8">
-          Sold pieces
-        </h2>
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between mb-8 gap-6">
+          <div>
+            <h2 className="text-3xl display-font text-white uppercase tracking-wider">
+              Sold pieces
+            </h2>
+            <p className="text-[#71717A] text-sm mt-2 max-w-xl">
+              Drag to reorder. First {settings.sold_display_count} appear on the public homepage.
+            </p>
+          </div>
+          <label className="block">
+            <span className="block text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6] mb-2">
+              # of pieces to display
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={48}
+              defaultValue={settings.sold_display_count}
+              key={`sold-${settings.sold_display_count}`}
+              onBlur={(e) => saveDisplayCount('sold_display_count', e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur()
+              }}
+              className="w-24 bg-[#05070A] border border-[#27272A] focus:border-[#14B8A6] p-3 text-white outline-none tabular-nums"
+            />
+          </label>
+        </div>
         {sold.length === 0 ? (
           <p className="text-[#71717A] text-sm">
             Mark a piece as sold from its pencil editor and it will show up here.
           </p>
         ) : (
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {sold.map((piece) => (
-              <Link
-                key={piece.id}
-                href={`/admin/homepage/pieces/${piece.id}`}
-                className="relative shrink-0 w-28 h-28 bg-[#111419] border border-white/5 hover:border-[#14B8A6] overflow-hidden"
-              >
-                {piece.photos[0] ? (
-                  <img src={piece.photos[0]} alt={piece.title} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white/20 display-font">
-                    SOLD
-                  </span>
-                )}
-                <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] text-center py-1 tracking-widest uppercase text-[#B59A54]">
-                  Sold
-                </span>
-              </Link>
-            ))}
-          </div>
+          <>
+            <SortableList
+              items={sold}
+              onReorder={persistSoldOrder}
+              className="flex flex-wrap gap-4"
+              itemClassName="shrink-0"
+              renderItem={(piece, { isDragging, dragHandleProps }) => {
+                const idx = sold.findIndex((p) => p.id === piece.id)
+                const onHomepage = idx >= 0 && idx < settings.sold_display_count
+                return (
+                  <div
+                    {...dragHandleProps}
+                    className={`relative w-28 h-28 bg-[#111419] border cursor-grab active:cursor-grabbing overflow-hidden ${
+                      isDragging
+                        ? 'border-[#00F2FE] opacity-60'
+                        : onHomepage
+                          ? 'border-[#B59A54]/60'
+                          : 'border-white/5 opacity-60'
+                    }`}
+                  >
+                    <Link
+                      href={`/admin/homepage/pieces/${piece.id}`}
+                      className="absolute inset-0 z-10"
+                      onClick={(e) => e.stopPropagation()}
+                      draggable={false}
+                    >
+                      <span className="sr-only">Edit {piece.title}</span>
+                    </Link>
+                    {piece.photos[0] ? (
+                      <img
+                        src={piece.photos[0]}
+                        alt={piece.title}
+                        className="w-full h-full object-cover pointer-events-none"
+                      />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white/20 display-font pointer-events-none">
+                        SOLD
+                      </span>
+                    )}
+                    <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] text-center py-1 tracking-widest uppercase text-[#B59A54] pointer-events-none">
+                      {onHomepage ? 'Sold' : 'After · See more'}
+                    </span>
+                  </div>
+                )
+              }}
+            />
+            {soldShowMore && (
+              <div className="mt-8 flex justify-center">
+                <Link
+                  href="/shop"
+                  className="border border-[#B59A54]/50 text-[#B59A54] display-font tracking-widest text-sm px-8 py-3 hover:bg-[#B59A54] hover:text-black"
+                >
+                  See more → /shop
+                </Link>
+              </div>
+            )}
+          </>
         )}
       </section>
 

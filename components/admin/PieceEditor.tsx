@@ -390,7 +390,106 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
           </div>
         )}
 
+        {/* 1. Photos */}
+        <div className="bg-[#0A0C10] border border-[#27272A] p-8 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-[#00F2FE]" />
+          <div className="flex justify-between items-end mb-6">
+            <h2 className="text-2xl display-font text-white">1. Photos</h2>
+            <span className="text-[#71717A] text-xs font-bold">{form.photos.length} / 5</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {form.photos.map((url, i) => (
+              <div key={url} className="aspect-[4/5] relative border border-[#27272A]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm({ ...form, photos: form.photos.filter((_, idx) => idx !== i) })
+                  }
+                  className="absolute top-2 right-2 bg-red-900/80 w-6 h-6 text-sm"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {form.photos.length < 5 && (
+              <button
+                type="button"
+                onClick={() => document.getElementById('piece-photo')?.click()}
+                className="aspect-[4/5] border border-dashed border-[#27272A] text-[#71717A] text-[10px] font-bold tracking-widest uppercase hover:border-[#00F2FE] hover:text-[#00F2FE]"
+              >
+                + Add
+              </button>
+            )}
+          </div>
+          <input
+            id="piece-photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={onFile}
+          />
+        </div>
+
+        {/* 2. Specs */}
+        <div className="bg-[#0A0C10] border border-[#27272A] p-8 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-[#14B8A6]" />
+          <h2 className="text-2xl display-font mb-2 text-white">2. Specs</h2>
+          <p className="text-[#71717A] text-xs mb-6">
+            Weight, size, and material show on the shop card and in search.
+          </p>
+          <div className="grid gap-6 md:grid-cols-[minmax(0,18rem)_1fr] md:items-start">
+            <div className="space-y-3">
+              {(
+                [
+                  { key: 'weight' as const, label: 'Weight (g)', placeholder: '42g' },
+                  { key: 'size' as const, label: 'Size', placeholder: '10.5' },
+                  { key: 'width' as const, label: 'Width (mm)', placeholder: '8mm' },
+                  { key: 'material' as const, label: 'Material', placeholder: '.925' },
+                ] as const
+              ).map((row) => (
+                <div key={row.key} className="flex items-center justify-between gap-3">
+                  <label
+                    htmlFor={`spec-${row.key}`}
+                    className="text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase shrink-0 min-w-[7.5rem]"
+                  >
+                    {row.label}
+                  </label>
+                  <input
+                    id={`spec-${row.key}`}
+                    type="text"
+                    value={form[row.key]}
+                    onChange={(e) => setForm({ ...form, [row.key]: e.target.value })}
+                    className="w-[6.5rem] shrink-0 bg-[#05070A] border border-[#27272A] px-2.5 py-2 text-sm text-white outline-none focus:border-[#B59A54] text-right"
+                    placeholder={row.placeholder}
+                  />
+                </div>
+              ))}
+            </div>
+            <div>
+              <label className="block text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
+                Story
+              </label>
+              <textarea
+                rows={12}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54] resize-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Pricing */}
+        <div className="bg-[#0A0C10] border border-[#27272A] p-8 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-[#B59A54]" />
+          <PiecePricingFields value={pricing} onChange={setPricing} spotPerOz={spotPerOz} sectionNumber={3} />
+        </div>
+
+        {/* Classification & visibility */}
         <div className="bg-[#0A0C10] border border-[#27272A] p-8 space-y-6">
+          <h2 className="text-2xl display-font text-white">Classification</h2>
           <div className="grid md:grid-cols-2 gap-6">
             <Field label="Title">
               <input
@@ -437,15 +536,6 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
             </div>
           </div>
 
-          <Field label="Description">
-            <textarea
-              rows={4}
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54] resize-none"
-            />
-          </Field>
-
           <Field label="Tags (comma separated)">
             <input
               value={form.tags}
@@ -453,37 +543,6 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
               className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
             />
           </Field>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Field label="Weight">
-              <input
-                value={form.weight}
-                onChange={(e) => setForm({ ...form, weight: e.target.value })}
-                className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
-              />
-            </Field>
-            <Field label="Size">
-              <input
-                value={form.size}
-                onChange={(e) => setForm({ ...form, size: e.target.value })}
-                className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
-              />
-            </Field>
-            <Field label="Width">
-              <input
-                value={form.width}
-                onChange={(e) => setForm({ ...form, width: e.target.value })}
-                className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
-              />
-            </Field>
-            <Field label="Material">
-              <input
-                value={form.material}
-                onChange={(e) => setForm({ ...form, material: e.target.value })}
-                className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
-              />
-            </Field>
-          </div>
 
           <div className="flex flex-wrap gap-6 pt-4 border-t border-[#27272A]">
             <label className="flex items-center gap-3 text-sm cursor-pointer">
@@ -500,50 +559,6 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
               </span>
             </label>
           </div>
-        </div>
-
-        <div className="bg-[#0A0C10] border border-[#27272A] p-8">
-          <PiecePricingFields value={pricing} onChange={setPricing} spotPerOz={spotPerOz} />
-        </div>
-
-        <div className="bg-[#0A0C10] border border-[#27272A] p-8">
-          <div className="flex justify-between items-end mb-6">
-            <h2 className="text-2xl display-font">Photos</h2>
-            <span className="text-[#71717A] text-xs font-bold">{form.photos.length} / 5</span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {form.photos.map((url, i) => (
-              <div key={url} className="aspect-[4/5] relative border border-[#27272A]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setForm({ ...form, photos: form.photos.filter((_, idx) => idx !== i) })
-                  }
-                  className="absolute top-2 right-2 bg-red-900/80 w-6 h-6 text-sm"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {form.photos.length < 5 && (
-              <button
-                type="button"
-                onClick={() => document.getElementById('piece-photo')?.click()}
-                className="aspect-[4/5] border border-dashed border-[#27272A] text-[#71717A] text-[10px] font-bold tracking-widest uppercase hover:border-[#00F2FE] hover:text-[#00F2FE]"
-              >
-                + Add
-              </button>
-            )}
-          </div>
-          <input
-            id="piece-photo"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            className="hidden"
-            onChange={onFile}
-          />
         </div>
 
         <button

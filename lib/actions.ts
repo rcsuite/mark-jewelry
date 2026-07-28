@@ -12,7 +12,8 @@ import {
   withLivePrice,
 } from '@/lib/pricing'
 import { getSilverSpotPerOz } from '@/lib/silver'
-import type { Category, MarkMoment, Review, ShopPiece } from '@/lib/types'
+import type { Category, MarkMoment, Review, ShopPiece, SiteSettings } from '@/lib/types'
+import { DEFAULT_SITE_SETTINGS } from '@/lib/queries'
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string }
 
@@ -496,6 +497,83 @@ export async function upsertReview(input: {
   if (error) return { ok: false, error: error.message }
   revalidateStorefront()
   return { ok: true, data: toReview(data as Record<string, unknown>) }
+}
+
+export async function updateHomepageDisplayCounts(input: {
+  handiworks_display_count?: number
+  sold_display_count?: number
+}): Promise<ActionResult<SiteSettings>> {
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: 'Unauthorized.' }
+
+  const clamp = (n: number, fallback: number) => {
+    if (!Number.isFinite(n)) return fallback
+    return Math.min(48, Math.max(1, Math.round(n)))
+  }
+
+  const { data: existing } = await supabase
+    .from('site_settings')
+    .select('handiworks_display_count, sold_display_count')
+    .eq('id', 1)
+    .maybeSingle()
+
+  const current: SiteSettings = {
+    handiworks_display_count: clamp(
+      Number(existing?.handiworks_display_count),
+      DEFAULT_SITE_SETTINGS.handiworks_display_count
+    ),
+    sold_display_count: clamp(
+      Number(existing?.sold_display_count),
+      DEFAULT_SITE_SETTINGS.sold_display_count
+    ),
+  }
+
+  const next: SiteSettings = {
+    handiworks_display_count:
+      input.handiworks_display_count !== undefined
+        ? clamp(input.handiworks_display_count, current.handiworks_display_count)
+        : current.handiworks_display_count,
+    sold_display_count:
+      input.sold_display_count !== undefined
+        ? clamp(input.sold_display_count, current.sold_display_count)
+        : current.sold_display_count,
+  }
+
+  const patch = { ...next, updated_at: new Date().toISOString() }
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from('site_settings')
+      .update(patch)
+      .eq('id', 1)
+      .select('handiworks_display_count, sold_display_count')
+      .single()
+    if (error) return { ok: false, error: error.message }
+    revalidateStorefront()
+    return {
+      ok: true,
+      data: {
+        handiworks_display_count: Number(data.handiworks_display_count),
+        sold_display_count: Number(data.sold_display_count),
+      },
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('site_settings')
+    .insert({ id: 1, ...patch })
+    .select('handiworks_display_count, sold_display_count')
+    .single()
+
+  if (error) return { ok: false, error: error.message }
+  revalidateStorefront()
+  return {
+    ok: true,
+    data: {
+      handiworks_display_count: Number(data.handiworks_display_count),
+      sold_display_count: Number(data.sold_display_count),
+    },
+  }
 }
 
 /** Homepage hero banner (`current_build.hero_image`). Does not touch progress photos. */
