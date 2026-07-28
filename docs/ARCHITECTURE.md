@@ -26,6 +26,10 @@ it.
 - **Supabase** via `@supabase/ssr` for Postgres + auth.
 - **Stripe** is installed but no checkout exists yet.
 - **react-easy-crop** for cropping uploads.
+- **Hosted on Vercel** — live project name is **`earthenminersdesigns`** (not the
+  unused `mark-jewelry` Vercel project). GitHub: `rscheetz-ui/mark-jewelry`.
+  Custom domain `earthenminersdesigns.com` must stay on that Vercel project.
+  Full deploy handoff: `docs/NEXT_STEPS.md` → **Deploy / Git / Vercel**.
 
 Version-matched Next.js docs ship inside the repo at `node_modules/next/dist/docs/`.
 Read them before changing framework behavior; training data for this version is

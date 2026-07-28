@@ -60,6 +60,9 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
     manualAmount: '',
   })
 
+  const [markAsSold, setMarkAsSold] = useState(false)
+  const [soldNote, setSoldNote] = useState('')
+
   const [showOtherCategory, setShowOtherCategory] = useState(false)
 
   const [activeCropIndex, setActiveCropIndex] = useState<number | null>(null)
@@ -185,7 +188,6 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
       const amount = parseMoneyInput(pricing.manualAmount)
       return amount === null ? null : Math.round(amount)
     }
-    if (pricing.inquireForPrice) return 0
     const material = parseMoneyInput(pricing.materialCost)
     const work = parseMoneyInput(pricing.workmanshipCost)
     const grams = parseMoneyInput(pricing.silverGrams)
@@ -203,7 +205,7 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
 
     const finalPhotos = formData.photos.filter((p) => p.trim() !== '')
     if (finalPhotos.length === 0) {
-      setErrorMessage('You must include at least one photo.')
+      setErrorMessage('Add at least one photo.')
       setIsSaving(false)
       return
     }
@@ -216,65 +218,56 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
       return
     }
 
-    if (!formData.title.trim() || formData.selectedCategories.length === 0) {
-      setErrorMessage('Title and at least one category are required.')
-      setIsSaving(false)
-      return
-    }
-
     const material = parseMoneyInput(pricing.materialCost)
     const work = parseMoneyInput(pricing.workmanshipCost)
     const grams = parseMoneyInput(pricing.silverGrams)
 
-    if (pricing.manualPrice) {
-      if (resolvedPrice === null) {
-        setErrorMessage('Enter a manual dollar amount, or turn off Manual price overwrite.')
-        setIsSaving(false)
-        return
-      }
-    } else if (!pricing.inquireForPrice) {
-      if (material === null || work === null || grams === null) {
-        setErrorMessage(
-          'Enter stone/material, workmanship, and silver grams — or use Manual price / Inquire for price.'
-        )
-        setIsSaving(false)
-        return
-      }
-      if (resolvedPrice === null) {
-        setErrorMessage('Silver spot is unavailable — try again in a moment.')
-        setIsSaving(false)
-        return
-      }
-    } else if (
-      (material !== null || work !== null || grams !== null) &&
-      (material === null || work === null || grams === null)
-    ) {
-      setErrorMessage(
-        'Fill in all three pricing fields (or leave them blank) when Inquire is checked.'
-      )
+    // Incomplete formula / no manual amount → Inquire on the shop.
+    const hasManual = pricing.manualPrice && parseMoneyInput(pricing.manualAmount) !== null
+    const hasFormula =
+      !pricing.manualPrice &&
+      material !== null &&
+      work !== null &&
+      grams !== null &&
+      spotPerOz !== null
+    const inquireForPrice =
+      pricing.inquireForPrice || (!hasManual && !hasFormula)
+
+    if (pricing.manualPrice && !hasManual) {
+      setErrorMessage('Enter a manual dollar amount, or turn off Manual price overwrite.')
       setIsSaving(false)
       return
     }
 
-    const finalPieceType =
-      formData.pieceType === 'Other' ? formData.customPieceType.trim() : formData.pieceType
+    let finalPieceType =
+      formData.pieceType === 'Other' ? formData.customPieceType.trim() : formData.pieceType.trim()
+    if (!finalPieceType) finalPieceType = 'Piece'
 
-    if (!finalPieceType) {
-      setErrorMessage('Kind of piece is required.')
-      setIsSaving(false)
-      return
-    }
-
-    const categoriesList = normalizeCategoryList(
-      formData.selectedCategories[0],
+    let categoriesList = normalizeCategoryList(
+      formData.selectedCategories[0] ?? '',
       formData.selectedCategories
     )
+    if (categoriesList.length === 0) {
+      const uncategorized = await createCategory('Uncategorized')
+      if (!uncategorized.ok) {
+        setErrorMessage(uncategorized.error)
+        setIsSaving(false)
+        return
+      }
+      setCategoryOptions((prev) =>
+        prev.some((c) => c.slug === uncategorized.category.slug)
+          ? prev
+          : [...prev, uncategorized.category]
+      )
+      categoriesList = [uncategorized.category.slug]
+    }
 
+    const title = formData.title.trim() || 'Untitled'
     const storedPrice = resolvedPrice ?? 0
 
     const { error } = await supabase.from('shop_inventory').insert([
       {
-        title: formData.title.trim(),
+        title,
         category: categoriesList[0],
         categories: categoriesList,
         piece_type: finalPieceType,
@@ -282,12 +275,15 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
         material_cost: material,
         workmanship_cost: work,
         silver_grams: grams,
-        inquire_for_price: pricing.inquireForPrice,
+        inquire_for_price: inquireForPrice,
         manual_price: pricing.manualPrice,
         photos: finalPhotos,
-        description: formData.description,
+        description: formData.description.trim() || null,
         tags: [],
         specs: formData.specs,
+        sold: markAsSold,
+        sold_note: markAsSold ? soldNote.trim() || null : null,
+        featured: false,
       },
     ])
 
@@ -297,8 +293,14 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
       return
     }
 
-    setStatusMessage('Piece secured — opening category editor…')
-    window.location.href = `/admin/homepage/categories/${categoriesList[0]}`
+    setStatusMessage(
+      markAsSold
+        ? 'Sold piece archived — opening homepage editor…'
+        : 'Piece secured — opening category editor…'
+    )
+    window.location.href = markAsSold
+      ? '/admin'
+      : `/admin/homepage/categories/${categoriesList[0]}`
   }
 
   return (
@@ -459,7 +461,11 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
 
         <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-[#14B8A6]"></div>
-          <h2 className="text-2xl display-font mb-6 text-white">2. Classification</h2>
+          <h2 className="text-2xl display-font mb-2 text-white">2. Classification</h2>
+          <p className="text-[#71717A] text-xs mb-6">
+            All optional for quick sold uploads — empty title becomes “Untitled”, no category →
+            Uncategorized, no kind → Piece.
+          </p>
 
           <div className="mb-6">
             <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
@@ -639,12 +645,44 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
           </div>
         </div>
 
+        <div className="bg-[#0A0C10] p-8 border border-[#B59A54]/40 rounded-sm shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-[#B59A54]"></div>
+          <h2 className="text-2xl display-font mb-2 text-white">5. Status</h2>
+          <p className="text-[#71717A] text-xs mb-6">
+            Check sold when archiving older work — it goes to the sold strip, not the shop grid.
+          </p>
+          <label className="flex items-start gap-3 cursor-pointer select-none border border-[#27272A] bg-[#05070A] p-4 hover:border-[#B59A54]/50 transition-colors">
+            <input
+              type="checkbox"
+              checked={markAsSold}
+              onChange={(e) => setMarkAsSold(e.target.checked)}
+              className="mt-1 accent-[#B59A54] w-4 h-4"
+            />
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm text-white font-medium">Mark as sold</span>
+              <span className="block text-[11px] text-[#71717A] mt-0.5 mb-3">
+                Archives this piece on save. Optional note for the sold listing.
+              </span>
+              {markAsSold && (
+                <textarea
+                  rows={3}
+                  value={soldNote}
+                  onChange={(e) => setSoldNote(e.target.value)}
+                  placeholder="e.g. Anniversary gift — found a home in Boulder."
+                  className="w-full bg-[#0A0C10] border border-[#B59A54]/40 p-3 text-sm text-white outline-none focus:border-[#B59A54] resize-none"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )}
+            </span>
+          </label>
+        </div>
+
         <button
           onClick={handleSubmit}
           disabled={isSaving || isUploading}
           className="w-full bg-[#B59A54] text-black display-font text-2xl py-6 hover:bg-transparent hover:text-[#B59A54] border-2 border-[#B59A54] transition-all disabled:opacity-50"
         >
-          {isSaving ? 'SECURING...' : 'SECURE IN VAULT'}
+          {isSaving ? 'SECURING...' : markAsSold ? 'ARCHIVE AS SOLD' : 'SECURE IN VAULT'}
         </button>
       </div>
     </div>

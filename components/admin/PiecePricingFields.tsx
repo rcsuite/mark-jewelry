@@ -68,8 +68,8 @@ export default function PiecePricingFields({
         <div>
           <h3 className="display-font text-xl text-white">{sectionNumber}. Pricing</h3>
           <p className="text-[#71717A] text-xs mt-1 max-w-md">
-            Stone/material + workmanship + silver × (spot + 5%). Listed price rounds to the nearest
-            dollar — or set a manual override.
+            Leave pricing blank for photo-only uploads — the shop will show Inquire. Incomplete
+            formula fields also default to Inquire. Or set a manual dollar amount.
           </p>
         </div>
         <div className="text-right">
@@ -226,7 +226,7 @@ export default function PiecePricingFields({
             <p className="text-[#71717A] text-sm">
               {value.manualPrice
                 ? 'Enter a manual dollar amount.'
-                : 'Enter all three numbers to see the live price.'}
+                : 'Enter all three numbers for a live price — or leave blank (shop shows Inquire).'}
             </p>
           )}
         </div>

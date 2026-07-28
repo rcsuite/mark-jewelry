@@ -6,16 +6,20 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { countUnreadForMark } from '@/lib/chat-actions'
 import type { SilverQuote } from '@/lib/silver'
+import type { Category, ShopPiece } from '@/lib/types'
 import AdminSilverStrip from '@/components/admin/AdminSilverStrip'
+import AdminPieceSearch from '@/components/admin/AdminPieceSearch'
 
 const FUTURES_URL = 'https://www.google.com/search?q=COMEX+silver+futures+SI%3DF'
 
 type Props = {
   silver: SilverQuote | null
   initialUnread: number
+  pieces: ShopPiece[]
+  categories: Category[]
 }
 
-export default function AdminTopBar({ silver, initialUnread }: Props) {
+export default function AdminTopBar({ silver, initialUnread, pieces, categories }: Props) {
   const [unread, setUnread] = useState(initialUnread)
   const [gearOpen, setGearOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
@@ -68,6 +72,8 @@ export default function AdminTopBar({ silver, initialUnread }: Props) {
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2 justify-end">
+          <AdminPieceSearch pieces={pieces} categories={categories} silver={silver} />
+
           <Link
             href="/admin/messages"
             className={`relative w-10 h-10 flex items-center justify-center border transition-colors ${
@@ -123,6 +129,20 @@ export default function AdminTopBar({ silver, initialUnread }: Props) {
                   onClick={() => setGearOpen(false)}
                 >
                   Public site
+                </Link>
+                <Link
+                  href="/admin/current-project"
+                  className="block px-4 py-3 text-[10px] font-bold tracking-widest uppercase text-[#A1A1AA] hover:bg-[#14B8A6]/10 hover:text-white"
+                  onClick={() => setGearOpen(false)}
+                >
+                  Current build
+                </Link>
+                <Link
+                  href="/admin/mark"
+                  className="block px-4 py-3 text-[10px] font-bold tracking-widest uppercase text-[#A1A1AA] hover:bg-[#14B8A6]/10 hover:text-white"
+                  onClick={() => setGearOpen(false)}
+                >
+                  Know Mark
                 </Link>
                 <button
                   type="button"

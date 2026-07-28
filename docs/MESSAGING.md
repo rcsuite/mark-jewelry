@@ -6,8 +6,8 @@ How Contact / Inquire / Admin Messages work, and what must be configured for ema
 
 - Contact is an **in-page popup** (`ContactProvider` + `ContactModal`), not a full
   page interrupt. `/contact` redirects into `?contact=1`.
-- Contact popup tabs: **New chat** (name + email + live/email-only) or **Continue
-  chat** (email only). Selected tab = teal fill; unselected = mustard so they stand out.
+- Contact popup tabs: **New chat**, **Continue chat**, or **Email Mark**. Selected
+  tab = teal fill; unselected = mustard so they stand out.
 - **Same email = same thread.** No visitor password. `chat_threads.visitor_email` is the
   key; typing that email (New or Continue) reopens the conversation. Same browser also
   keeps cookies ~400 days. Visitors are still not Supabase Auth users (no `/admin`).

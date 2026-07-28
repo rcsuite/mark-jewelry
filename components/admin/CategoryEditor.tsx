@@ -125,7 +125,7 @@ export default function CategoryEditor({ category: initial, pieces: initialPiece
           Editing category · {category.title}
           {pending ? ' · Saving…' : ''}
         </p>
-        <Link href="/admin/homepage" className="text-[10px] font-bold tracking-widest uppercase">
+        <Link href="/admin" className="text-[10px] font-bold tracking-widest uppercase">
           ← Back to homepage editor
         </Link>
       </div>

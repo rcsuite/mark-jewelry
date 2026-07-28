@@ -159,7 +159,7 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
     setStatusMessage(null)
 
     const cleanImages = formData.progress_images.filter((img) => img.trim() !== '')
-    const heroImage = cleanImages[cleanImages.length - 1] || formData.hero_image || ''
+    // hero_image is the homepage banner — edited on /admin, not overwritten here.
 
     const { error } = await supabase
       .from('current_build')
@@ -168,7 +168,6 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
         video_archive: formData.video_archive,
         description: formData.description,
         status: 'active',
-        hero_image: heroImage,
         updated_at: new Date().toISOString(),
       })
       .eq('id', formData.id)
@@ -181,7 +180,6 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
         ...prev,
         status: 'active',
         progress_images: cleanImages.length > 0 ? cleanImages : [''],
-        hero_image: heroImage,
       }))
     }
 
@@ -301,7 +299,6 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
         progress_images: [],
         video_archive: [],
         description: '',
-        hero_image: photos[photos.length - 1],
         updated_at: new Date().toISOString(),
       })
       .eq('id', formData.id)
@@ -322,7 +319,6 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
       progress_images: [''],
       video_archive: [],
       description: '',
-      hero_image: photos[photos.length - 1],
     }))
     setIsSaving(false)
   }

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import ContactTrigger from '@/components/chat/ContactTrigger'
 import type { Category, CurrentBuild, HeroSlide, Review, ShopPiece } from '@/lib/types'
+import { CATEGORY_GRID_CLASS, categoryItemWidthClass } from '@/lib/category-layout'
 
 type HomePageProps = {
   build: CurrentBuild | null
@@ -184,12 +185,12 @@ export default function HomePage({
               Industrial architectures set with geological specimens. Choose your loadout.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-6">
+          <div className={CATEGORY_GRID_CLASS}>
             {categories.map((category) => (
               <Link
                 href={`/shop?category=${category.slug}`}
                 key={category.slug}
-                className="group bg-[#05070A] border border-white/5 p-6 hover:border-[#14B8A6] transition-all duration-300 flex flex-col h-full"
+                className={`group bg-[#05070A] border border-white/5 p-6 hover:border-[#14B8A6] transition-all duration-300 flex flex-col h-full ${categoryItemWidthClass(categories.length)}`}
               >
                 <div className="aspect-square bg-[#111419] mb-6 flex items-center justify-center border border-white/5 group-hover:border-[#14B8A6]/30 overflow-hidden">
                   {category.image_url ? (

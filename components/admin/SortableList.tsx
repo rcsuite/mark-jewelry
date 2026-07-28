@@ -7,6 +7,8 @@ type SortableListProps<T extends { id: string }> = {
   items: T[]
   onReorder: (next: T[]) => void
   className?: string
+  /** Applied to each item wrapper (e.g. responsive card widths). */
+  itemClassName?: string
   renderItem: (item: T, ctx: { isDragging: boolean; dragHandleProps: DragHandleProps }) => ReactNode
 }
 
@@ -21,6 +23,7 @@ export function SortableList<T extends { id: string }>({
   items,
   onReorder,
   className,
+  itemClassName,
   renderItem,
 }: SortableListProps<T>) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -56,7 +59,12 @@ export function SortableList<T extends { id: string }>({
               setOverId(null)
               setDraggingId(null)
             }}
-            className={isOver ? 'ring-2 ring-[#14B8A6] ring-offset-2 ring-offset-[#05070A]' : undefined}
+            className={[
+              itemClassName,
+              isOver ? 'ring-2 ring-[#14B8A6] ring-offset-2 ring-offset-[#05070A]' : undefined,
+            ]
+              .filter(Boolean)
+              .join(' ')}
           >
             {renderItem(item, {
               isDragging,

@@ -97,7 +97,14 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
   }
 
   const resolvePriceFields = ():
-    | { ok: true; material: number | null; work: number | null; grams: number | null; price?: number }
+    | {
+        ok: true
+        material: number | null
+        work: number | null
+        grams: number | null
+        price?: number
+        inquire: boolean
+      }
     | { ok: false; error: string } => {
     const material = parseMoneyInput(pricing.materialCost)
     const work = parseMoneyInput(pricing.workmanshipCost)
@@ -106,20 +113,25 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
     if (pricing.manualPrice) {
       const amount = parseMoneyInput(pricing.manualAmount)
       if (amount === null) {
-        return { ok: false, error: 'Enter a manual dollar amount, or turn off Manual price overwrite.' }
+        return {
+          ok: false,
+          error: 'Enter a manual dollar amount, or turn off Manual price overwrite.',
+        }
       }
-      return { ok: true, material, work, grams, price: Math.round(amount) }
-    }
-
-    if (!pricing.inquireForPrice && (material === null || work === null || grams === null)) {
       return {
-        ok: false,
-        error:
-          'Enter stone/material, workmanship, and silver grams — or use Manual price / Inquire for price.',
+        ok: true,
+        material,
+        work,
+        grams,
+        price: Math.round(amount),
+        inquire: pricing.inquireForPrice,
       }
     }
 
-    return { ok: true, material, work, grams }
+    const hasFormula = material !== null && work !== null && grams !== null
+    const inquire = pricing.inquireForPrice || !hasFormula
+
+    return { ok: true, material, work, grams, inquire }
   }
 
   const save = (overrides?: {
@@ -128,14 +140,16 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
     featured?: boolean
   }) => {
     startTransition(async () => {
-      if (!form.title.trim() || form.selectedCategories.length === 0) {
-        flash('Title and at least one category are required.', true)
-        return
-      }
-
       const resolved = resolvePriceFields()
       if (!resolved.ok) {
         flash(resolved.error, true)
+        return
+      }
+
+      const title = form.title.trim() || 'Untitled'
+      let categories = form.selectedCategories
+      if (categories.length === 0) {
+        flash('Pick at least one category, or use Add piece for Uncategorized defaults.', true)
         return
       }
 
@@ -160,14 +174,14 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
 
       const result = await updatePiece({
         id: piece.id,
-        title: form.title,
-        category: form.selectedCategories[0],
-        categories: form.selectedCategories,
-        piece_type: form.piece_type,
+        title,
+        category: categories[0],
+        categories,
+        piece_type: form.piece_type.trim() || 'Piece',
         material_cost: resolved.material,
         workmanship_cost: resolved.work,
         silver_grams: resolved.grams,
-        inquire_for_price: pricing.inquireForPrice,
+        inquire_for_price: resolved.inquire,
         manual_price: pricing.manualPrice,
         price: resolved.price,
         description: form.description,
@@ -183,8 +197,8 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
           material: form.material,
         },
         photos: form.photos,
-        sold: nextSold,
         featured: nextFeatured,
+        sold: nextSold,
       })
 
       if (!result.ok) {
@@ -272,7 +286,7 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
             href={
               form.selectedCategories[0]
                 ? `/admin/homepage/categories/${form.selectedCategories[0]}`
-                : '/admin/homepage'
+                : '/admin'
             }
             className="text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase hover:text-[#14B8A6] mb-4 inline-block"
           >

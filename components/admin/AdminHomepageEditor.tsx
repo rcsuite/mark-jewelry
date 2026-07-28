@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
+import Cropper, { Area } from 'react-easy-crop'
 import {
   createCategory,
   deleteReview,
@@ -9,10 +10,19 @@ import {
   reorderFeatured,
   reorderReviews,
   setPieceFeatured,
+  updateHomepageBanner,
   upsertReview,
 } from '@/lib/actions'
 import { PencilButton, SortableList } from '@/components/admin/SortableList'
+import { createClient } from '@/lib/supabase/client'
+import { getCroppedImageBlob } from '@/lib/crop-image'
+import { CROP_ASPECT_OPTIONS } from '@/lib/crop-aspect'
+import { FORGE_IMAGES_BUCKET, uploadImageBlob } from '@/lib/upload-image'
+import { CATEGORY_GRID_CLASS, categoryItemWidthClass } from '@/lib/category-layout'
+import { resolveHeroBannerUrl } from '@/lib/hero'
 import type { Category, CurrentBuild, HeroSlide, Review, ShopPiece } from '@/lib/types'
+
+const supabase = createClient()
 
 type Props = {
   build: CurrentBuild | null
@@ -26,6 +36,8 @@ type Props = {
 }
 
 export default function AdminHomepageEditor({
+  build,
+  slides: initialSlides,
   categories: initialCategories,
   reviews: initialReviews,
   featured: initialFeatured,
@@ -33,12 +45,15 @@ export default function AdminHomepageEditor({
   availableForFeature,
   forgeActive,
 }: Props) {
+  const [bannerUrl, setBannerUrl] = useState(resolveHeroBannerUrl(build?.hero_image))
+  const [slides, setSlides] = useState(initialSlides)
   const [categories, setCategories] = useState(initialCategories)
   const [reviews, setReviews] = useState(initialReviews)
   const [featured, setFeatured] = useState(initialFeatured)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const [slideIndex, setSlideIndex] = useState(0)
 
   const [editingReview, setEditingReview] = useState<Review | null>(null)
   const [addingReview, setAddingReview] = useState(false)
@@ -51,6 +66,21 @@ export default function AdminHomepageEditor({
   const [addingCategory, setAddingCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [pickingFeatured, setPickingFeatured] = useState(false)
+
+  const [imageSrc, setImageSrc] = useState<string | null>(null)
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [aspect, setAspect] = useState<number | undefined>(16 / 10)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
+  const [uploading, setUploading] = useState(false)
+
+  useEffect(() => {
+    if (slides.length <= 1) return
+    const interval = setInterval(() => {
+      setSlideIndex((prev) => (prev + 1) % slides.length)
+    }, 5500)
+    return () => clearInterval(interval)
+  }, [slides])
 
   const flash = (msg: string, isError = false) => {
     if (isError) {
@@ -185,7 +215,55 @@ export default function AdminHomepageEditor({
     })
   }
 
+  const onBannerFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageSrc(URL.createObjectURL(file))
+    setCrop({ x: 0, y: 0 })
+    setZoom(1)
+    setCroppedAreaPixels(null)
+    e.target.value = ''
+  }
+
+  const saveBanner = async () => {
+    if (!imageSrc || !croppedAreaPixels) {
+      flash('Adjust the crop first.', true)
+      return
+    }
+    setUploading(true)
+    try {
+      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels)
+      const url = await uploadImageBlob(
+        supabase,
+        FORGE_IMAGES_BUCKET,
+        'homepage',
+        blob,
+        `banner-${Date.now()}`
+      )
+      const result = await updateHomepageBanner(url)
+      if (!result.ok) {
+        flash(result.error, true)
+        return
+      }
+      const nextBanner = result.data!.hero_image
+      setBannerUrl(nextBanner)
+      setSlides((prev) => {
+        if (prev.length === 0) return [{ url: nextBanner, label: 'AWAITING NEXT IGNITION' }]
+        return prev.map((slide, i) => (i === 0 ? { ...slide, url: nextBanner } : slide))
+      })
+      URL.revokeObjectURL(imageSrc)
+      setImageSrc(null)
+      flash('Hero banner updated.')
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Upload failed.', true)
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const homepageCategories = categories.filter((c) => c.show_on_homepage)
+  const displaySlides =
+    slides.length > 0 ? slides : [{ url: bannerUrl, label: 'AWAITING NEXT IGNITION' }]
 
   return (
     <div className="min-h-screen bg-[#05070A] text-[#E0E6ED] font-sans antialiased">
@@ -202,8 +280,8 @@ export default function AdminHomepageEditor({
         }}
       />
 
-      {/* Editing banner */}
-      <div className="sticky top-0 z-50 bg-[#14B8A6] text-black px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      {/* Sticks under AdminTopBar (silver strip) */}
+      <div className="sticky top-14 z-[60] bg-[#14B8A6] text-black px-4 md:px-6 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-black/10">
         <p className="text-[11px] font-bold tracking-[0.2em] uppercase">
           Editing storefront — drag to reorder · pencil to edit
           {pending ? ' · Saving…' : ''}
@@ -216,10 +294,16 @@ export default function AdminHomepageEditor({
             View public site
           </Link>
           <Link
-            href="/admin"
-            className="text-[10px] font-bold tracking-widest uppercase bg-black text-[#14B8A6] px-4 py-2"
+            href="/admin/mark"
+            className="text-[10px] font-bold tracking-widest uppercase border border-black/30 px-4 py-2 hover:bg-black hover:text-[#14B8A6]"
           >
-            Control panel
+            Know Mark
+          </Link>
+          <Link
+            href="/admin/add-piece"
+            className="text-[10px] font-bold tracking-widest uppercase bg-black text-[#14B8A6] px-4 py-2 hover:text-[#00F2FE]"
+          >
+            + Add new piece
           </Link>
         </div>
       </div>
@@ -236,25 +320,75 @@ export default function AdminHomepageEditor({
         </div>
       )}
 
-      {/* Hero stub — not editable here; points at live forge */}
-      <header className="relative border-b border-white/5 py-16 px-6">
-        <div className="max-w-7xl mx-auto">
-          <p className="text-[10px] tracking-[0.3em] uppercase text-[#14B8A6] font-bold mb-4">
-            {forgeActive ? 'Forge active' : 'Forge resting'} — managed in Current Build
-          </p>
-          <h1 className="text-4xl md:text-6xl display-font text-white mb-4">
-            Earthen Miners <span className="labradorite-teal">Designs</span>
-          </h1>
-          <p className="text-[#A1A1AA] max-w-xl text-sm">
-            This page mirrors the public homepage. Grab a card to reorder. Hit the pencil to go
-            deeper.
-          </p>
-          <Link
-            href="/admin/current-project"
-            className="inline-block mt-8 border border-[#B59A54] text-[#B59A54] display-font tracking-widest text-sm px-6 py-3 hover:bg-[#B59A54] hover:text-black"
-          >
-            Edit live forge →
-          </Link>
+      {/* Hero — mirrors public `/`, pencil edits the banner image */}
+      <header className="relative w-full border-b border-white/5">
+        <div className="max-w-7xl mx-auto grid md:grid-cols-5 gap-0 items-stretch">
+          <div className="relative md:col-span-3 aspect-[16/10] md:aspect-auto md:min-h-[400px] border-r border-white/5 bg-[#0A0C10] overflow-hidden group">
+            {displaySlides.map((slide, index) => (
+              <img
+                key={`${slide.url}-${index}`}
+                src={slide.url}
+                alt=""
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 pointer-events-none ${
+                  slideIndex === index ? 'opacity-100' : 'opacity-0'
+                }`}
+              />
+            ))}
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent pointer-events-none" />
+            <div className="absolute bottom-6 left-6 flex items-center gap-3 bg-black/60 p-3 backdrop-blur-sm border border-white/10 z-10">
+              <div className="relative flex h-3 w-3">
+                <span
+                  className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                    forgeActive ? 'bg-[#00F2FE]' : 'bg-[#71717A]'
+                  }`}
+                />
+                <span
+                  className={`relative inline-flex rounded-full h-3 w-3 ${
+                    forgeActive ? 'bg-[#00F2FE]' : 'bg-[#71717A]'
+                  }`}
+                />
+              </div>
+              <span className="display-font tracking-widest text-sm text-white">
+                {displaySlides[slideIndex]?.label}
+              </span>
+            </div>
+            <PencilButton
+              onClick={() => document.getElementById('admin-hero-banner-input')?.click()}
+              label="Change hero banner"
+            />
+            <input
+              id="admin-hero-banner-input"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onBannerFile}
+            />
+            <p className="absolute top-3 left-3 z-20 text-[9px] font-bold tracking-widest uppercase bg-black/80 border border-[#27272A] text-[#A1A1AA] px-2 py-1">
+              Hero banner
+            </p>
+          </div>
+
+          <div className="md:col-span-2 p-8 md:p-12 flex flex-col justify-center">
+            <span className="text-sm font-semibold tracking-[0.2em] uppercase metal-oxidized mb-3">
+              CURRENT PROJECT LOG
+            </span>
+            <h1 className="text-5xl md:text-6xl font-bold leading-[0.9] mb-6 text-white display-font tracking-tight">
+              Follow <br /> The <span className="labradorite-flash">Build.</span>
+            </h1>
+            <div className="border-l-2 border-[#14B8A6] pl-6 py-1 mb-8">
+              <p className="text-base md:text-lg text-[#A1A1AA] font-light leading-relaxed">
+                {forgeActive
+                  ? `On the bench: ${build?.description || 'a new custom piece is underway.'}`
+                  : 'Forge resting — pencil the hero image, or open Current Build to ignite the next piece.'}
+              </p>
+            </div>
+            <Link
+              href="/admin/current-project"
+              className="w-fit border border-[#B59A54] text-[#B59A54] display-font tracking-widest text-sm px-6 py-3 hover:bg-[#B59A54] hover:text-black"
+            >
+              Edit live forge →
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -300,7 +434,8 @@ export default function AdminHomepageEditor({
           <SortableList
             items={homepageCategories}
             onReorder={persistCategoryOrder}
-            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-6"
+            className={CATEGORY_GRID_CLASS}
+            itemClassName={categoryItemWidthClass(homepageCategories.length)}
             renderItem={(category, { isDragging, dragHandleProps }) => (
               <div
                 {...dragHandleProps}
@@ -490,7 +625,7 @@ export default function AdminHomepageEditor({
 
       {/* Review modal */}
       {(editingReview || addingReview) && (
-        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-[75] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
           <div className="bg-[#0A0C10] border border-[#27272A] p-8 max-w-lg w-full relative">
             <div className="absolute top-0 left-0 w-full h-1 bg-[#14B8A6]" />
             <h3 className="text-2xl display-font mb-6">
@@ -567,7 +702,7 @@ export default function AdminHomepageEditor({
 
       {/* Feature picker */}
       {pickingFeatured && (
-        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-[75] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
           <div className="bg-[#0A0C10] border border-[#27272A] p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <h3 className="text-2xl display-font mb-2">Feature a vault piece</h3>
             <p className="text-[#71717A] text-sm mb-6">
@@ -611,6 +746,76 @@ export default function AdminHomepageEditor({
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Hero banner crop */}
+      {imageSrc && (
+        <div className="fixed inset-0 z-[80] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 md:p-8">
+          <div className="bg-[#0A0C10] border border-[#27272A] p-6 max-w-3xl w-full">
+            <h3 className="text-2xl display-font mb-4">Crop hero banner</h3>
+            <div className="relative w-full h-72 md:h-96 bg-[#05070A]">
+              <Cropper
+                image={imageSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={aspect}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={(_, area) => setCroppedAreaPixels(area)}
+              />
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <label className="text-[10px] uppercase tracking-widest text-[#71717A] font-bold flex items-center gap-2">
+                Zoom
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.05}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="w-32"
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {CROP_ASPECT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setAspect(opt.value)}
+                    className={`px-3 py-1 text-[9px] font-bold tracking-widest uppercase border ${
+                      aspect === opt.value
+                        ? 'border-[#14B8A6] text-[#14B8A6]'
+                        : 'border-[#27272A] text-[#71717A]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3 mt-6">
+              <button
+                type="button"
+                onClick={saveBanner}
+                disabled={uploading || !croppedAreaPixels}
+                className="px-6 py-3 bg-[#14B8A6] text-black text-[10px] font-bold tracking-widest uppercase disabled:opacity-50"
+              >
+                {uploading ? 'Uploading…' : 'Save banner'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  URL.revokeObjectURL(imageSrc)
+                  setImageSrc(null)
+                }}
+                className="px-6 py-3 border border-[#27272A] text-[#71717A] text-[10px] font-bold tracking-widest uppercase"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

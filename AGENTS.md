@@ -15,7 +15,7 @@ Start here:
 - `docs/ROADMAP.md` — the prioritized to-do list.
 - `docs/ADMIN_EDITING.md` — the **user-intuitive edit** ethos (mirror the site, pencil, drag).
 - `docs/MESSAGING.md` — visitor chat, piece inquire tags, Mark email notify setup.
-- `docs/NEXT_STEPS.md` — handoff: what’s done and what to build next.
+- `docs/NEXT_STEPS.md` — handoff: what’s done, deploy/Git/Vercel mapping, what to build next.
 - `.cursor/rules/` — the conventions to follow when writing code.
 
 Two rules matter more than the rest:
@@ -31,3 +31,7 @@ see `.cursor/rules/admin-auth-uploads.mdc`.
 
 Note that this project is on Next.js 16, where Middleware is called **Proxy**; the auth
 gate lives in `proxy.ts` at the repo root.
+
+**Deploy:** GitHub `rscheetz-ui/mark-jewelry` → Vercel project `earthenminersdesigns`
+→ `earthenminersdesigns.com`. Riley usually commits/pushes from the IDE; agents push
+only when asked. Details in `docs/NEXT_STEPS.md`.

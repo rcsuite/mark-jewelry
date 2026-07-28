@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { resolveHeroBannerUrl } from '@/lib/hero'
 import { withLivePrice, withLivePrices } from '@/lib/pricing'
 import { getSilverSpotPerOz } from '@/lib/silver'
 import type {
@@ -314,14 +315,16 @@ export function isBuildActive(build: CurrentBuild | null): boolean {
 }
 
 export function buildHeroSlides(build: CurrentBuild | null): HeroSlide[] {
+  const banner = resolveHeroBannerUrl(build?.hero_image)
+
   if (!isBuildActive(build) || !build) {
-    return [{ url: '/banner2.png', label: 'AWAITING NEXT IGNITION' }]
+    return [{ url: banner, label: 'AWAITING NEXT IGNITION' }]
   }
 
   const progress = build.progress_images
   const mostRecent = progress[progress.length - 1]
   const sequence: HeroSlide[] = [
-    { url: '/banner2.png', label: 'LIVE FROM THE WORKBENCH' },
+    { url: banner, label: 'LIVE FROM THE WORKBENCH' },
     { url: mostRecent, label: 'LATEST UPDATE' },
   ]
 

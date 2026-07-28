@@ -12,8 +12,7 @@ type Props = {
   pieceTitle?: string | null
 }
 
-type Gate = 'new' | 'continue'
-type Mode = 'live' | 'email_only'
+type Path = 'new' | 'continue' | 'email'
 
 const tabClass = (active: boolean) =>
   `p-3 border text-[10px] font-bold uppercase tracking-widest transition-colors ${
@@ -27,10 +26,9 @@ const fieldClass =
 
 export default function ContactForm({ pieceId, pieceTitle }: Props) {
   const router = useRouter()
-  const [gate, setGate] = useState<Gate>('new')
+  const [path, setPath] = useState<Path>('new')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [mode, setMode] = useState<Mode>('live')
   const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -43,7 +41,7 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
       setStatus(null)
       const tagged = withPieceTag(message, pieceTitle, pieceId)
 
-      if (gate === 'continue') {
+      if (path === 'continue') {
         const result = await startChat({
           email,
           mode: 'live',
@@ -60,6 +58,7 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
         return
       }
 
+      const mode = path === 'email' ? 'email_only' : 'live'
       const result = await startChat({
         name,
         email,
@@ -85,9 +84,15 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
 
   const buttonLabel = (() => {
     if (pending) return 'Connecting…'
-    if (gate === 'continue') return 'Open my chat'
-    return mode === 'live' ? 'Start live chat' : 'Send to Mark'
+    if (path === 'continue') return 'Open my chat'
+    if (path === 'email') return 'Send to Mark'
+    return 'Start live chat'
   })()
+
+  const selectPath = (next: Path) => {
+    setPath(next)
+    setError(null)
+  }
 
   return (
     <div className="min-h-screen bg-[#05070A] text-white font-sans antialiased">
@@ -138,31 +143,27 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
         )}
 
         <div className="space-y-5 bg-[#0A0C10] border border-[#27272A] p-6">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setGate('new')
-                setError(null)
-              }}
-              className={tabClass(gate === 'new')}
-            >
+          <div className="grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => selectPath('new')} className={tabClass(path === 'new')}>
               New chat
             </button>
             <button
               type="button"
-              onClick={() => {
-                setGate('continue')
-                setMode('live')
-                setError(null)
-              }}
-              className={tabClass(gate === 'continue')}
+              onClick={() => selectPath('continue')}
+              className={tabClass(path === 'continue')}
             >
               Continue chat
             </button>
+            <button
+              type="button"
+              onClick={() => selectPath('email')}
+              className={tabClass(path === 'email')}
+            >
+              Email Mark
+            </button>
           </div>
 
-          {gate === 'new' && (
+          {path !== 'continue' && (
             <label className="block">
               <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
                 Your name
@@ -188,45 +189,37 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
             </span>
           </label>
 
-          {gate === 'new' && (
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setMode('live')}
-                className={tabClass(mode === 'live')}
-              >
-                Live chat
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('email_only')}
-                className={tabClass(mode === 'email_only')}
-              >
-                Email Mark
-              </button>
-            </div>
-          )}
-
-          {gate === 'new' && (
+          {path === 'new' && (
             <label className="block">
               <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
-                {mode === 'email_only' ? 'Your message' : 'First question (optional)'}
+                First question (optional)
               </span>
               <textarea
                 rows={4}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 className={`${fieldClass} resize-none`}
-                placeholder={
-                  mode === 'email_only'
-                    ? 'What should Mark know?'
-                    : 'What do you want to ask Mark?'
-                }
+                placeholder="What do you want to ask Mark?"
               />
             </label>
           )}
 
-          {gate === 'continue' && (
+          {path === 'email' && (
+            <label className="block">
+              <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
+                Your message
+              </span>
+              <textarea
+                rows={4}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className={`${fieldClass} resize-none`}
+                placeholder="What should Mark know?"
+              />
+            </label>
+          )}
+
+          {path === 'continue' && (
             <p className="text-[12px] text-[#A1A1AA] leading-relaxed">
               Enter the email you used before. We’ll open that thread.
             </p>

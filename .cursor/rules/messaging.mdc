@@ -24,5 +24,5 @@ before email (cancelled if Mark opens the thread). Cron: `/api/cron/chat-reminde
 Visitor chat uses **email + cookies**, not Supabase Auth and not a password. Never put
 visitors into `auth.users` for chat — that would risk `/admin` access.
 
-Contact UI: **New chat** vs **Continue chat**. Same `visitor_email` always resumes the
-thread in `chat_threads` (passcode column is unused for verification).
+Contact UI: **New chat** · **Continue chat** · **Email Mark**. Same `visitor_email`
+always resumes the thread in `chat_threads` (passcode column is unused for verification).

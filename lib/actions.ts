@@ -498,6 +498,43 @@ export async function upsertReview(input: {
   return { ok: true, data: toReview(data as Record<string, unknown>) }
 }
 
+/** Homepage hero banner (`current_build.hero_image`). Does not touch progress photos. */
+export async function updateHomepageBanner(
+  imageUrl: string
+): Promise<ActionResult<{ hero_image: string }>> {
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: 'Unauthorized.' }
+
+  const url = imageUrl.trim()
+  try {
+    assertPersistentImageUrls([url])
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Invalid image URL.' }
+  }
+
+  const { data: existing } = await supabase.from('current_build').select('id').limit(1).maybeSingle()
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('current_build')
+      .update({ hero_image: url })
+      .eq('id', existing.id)
+    if (error) return { ok: false, error: error.message }
+  } else {
+    const { error } = await supabase.from('current_build').insert({
+      hero_image: url,
+      progress_images: [],
+      status: 'complete',
+      description: null,
+      video_archive: [],
+    })
+    if (error) return { ok: false, error: error.message }
+  }
+
+  revalidateStorefront()
+  return { ok: true, data: { hero_image: url } }
+}
+
 export async function deleteReview(id: string): Promise<ActionResult> {
   const { supabase, user } = await requireUser()
   if (!user) return { ok: false, error: 'Unauthorized.' }

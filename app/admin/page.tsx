@@ -1,21 +1,41 @@
-import AdminHub from '@/components/admin/AdminHub'
+import AdminHomepageEditor from '@/components/admin/AdminHomepageEditor'
 import AdminPriceSync from '@/components/admin/AdminPriceSync'
-import { getCategories, getShopInventory } from '@/lib/queries'
-import { getSilverQuote } from '@/lib/silver'
+import {
+  buildHeroSlides,
+  getAvailableInventory,
+  getCategories,
+  getCurrentBuild,
+  getFeaturedInventory,
+  getReviews,
+  getSoldInventory,
+  isBuildActive,
+} from '@/lib/queries'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AdminDashboard() {
-  const [pieces, categories, silver] = await Promise.all([
-    getShopInventory(),
+  const [build, categories, reviews, featured, sold, available] = await Promise.all([
+    getCurrentBuild(),
     getCategories(),
-    getSilverQuote(),
+    getReviews(),
+    getFeaturedInventory(12),
+    getSoldInventory(24),
+    getAvailableInventory(),
   ])
 
   return (
     <>
       <AdminPriceSync />
-      <AdminHub pieces={pieces} categories={categories} silver={silver} />
+      <AdminHomepageEditor
+        build={build}
+        slides={buildHeroSlides(build)}
+        forgeActive={isBuildActive(build)}
+        categories={categories}
+        reviews={reviews}
+        featured={featured}
+        sold={sold}
+        availableForFeature={available}
+      />
     </>
   )
 }
