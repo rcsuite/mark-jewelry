@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import AdminHomepageEditor from '@/components/admin/AdminHomepageEditor'
 import AdminPriceSync from '@/components/admin/AdminPriceSync'
 import {
@@ -28,17 +29,19 @@ export default async function AdminDashboard() {
   return (
     <>
       <AdminPriceSync />
-      <AdminHomepageEditor
-        build={build}
-        slides={buildHeroSlides(build)}
-        forgeActive={isBuildActive(build)}
-        categories={categories}
-        reviews={reviews}
-        featured={featured}
-        sold={sold}
-        availableForFeature={available}
-        settings={settings}
-      />
+      <Suspense fallback={null}>
+        <AdminHomepageEditor
+          build={build}
+          slides={buildHeroSlides(build)}
+          forgeActive={isBuildActive(build)}
+          categories={categories}
+          reviews={reviews}
+          featured={featured}
+          sold={sold}
+          availableForFeature={available}
+          settings={settings}
+        />
+      </Suspense>
     </>
   )
 }

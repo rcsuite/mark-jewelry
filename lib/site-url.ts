@@ -15,3 +15,11 @@ export function getAppOrigin(): string {
 export function adminMessagesUrl(): string {
   return `${getAppOrigin()}/admin/messages`
 }
+
+export function adminReviewsUrl(): string {
+  return `${getAppOrigin()}/admin/reviews`
+}
+
+export function reviewInviteUrl(token: string): string {
+  return `${getAppOrigin()}/review/${encodeURIComponent(token)}`
+}

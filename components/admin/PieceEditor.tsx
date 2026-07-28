@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import Cropper, { Area } from 'react-easy-crop'
 import { updatePiece } from '@/lib/actions'
 import { assertPersistentImageUrls } from '@/lib/auth-session'
@@ -24,7 +25,8 @@ type Props = {
 }
 
 export default function PieceEditor({ piece: initial, categories, spotPerOz }: Props) {
-  const [piece, setPiece] = useState(initial)
+  const router = useRouter()
+  const piece = initial
   const [form, setForm] = useState({
     title: initial.title,
     selectedCategories: initial.categories?.length
@@ -41,6 +43,8 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
     material: initial.specs?.material ?? '',
     sold: initial.sold,
     sold_note: initial.sold_note ?? '',
+    buyer_name: initial.buyer_name ?? '',
+    buyer_email: initial.buyer_email ?? '',
     featured: initial.featured,
     photos: initial.photos.length ? [...initial.photos] : ([] as string[]),
   })
@@ -63,6 +67,8 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
   })
   const [soldPromptOpen, setSoldPromptOpen] = useState(false)
   const [soldNoteDraft, setSoldNoteDraft] = useState(initial.sold_note ?? '')
+  const [buyerNameDraft, setBuyerNameDraft] = useState(initial.buyer_name ?? '')
+  const [buyerEmailDraft, setBuyerEmailDraft] = useState(initial.buyer_email ?? '')
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -137,6 +143,8 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
   const save = (overrides?: {
     sold?: boolean
     sold_note?: string | null
+    buyer_name?: string | null
+    buyer_email?: string | null
     featured?: boolean
   }) => {
     startTransition(async () => {
@@ -165,6 +173,14 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
         overrides?.sold_note !== undefined
           ? overrides.sold_note
           : form.sold_note.trim() || null
+      const nextBuyerName =
+        overrides?.buyer_name !== undefined
+          ? overrides.buyer_name
+          : form.buyer_name.trim() || null
+      const nextBuyerEmail =
+        overrides?.buyer_email !== undefined
+          ? overrides.buyer_email
+          : form.buyer_email.trim() || null
       const nextFeatured =
         overrides?.featured !== undefined
           ? overrides.featured
@@ -186,6 +202,8 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
         price: resolved.price,
         description: form.description,
         sold_note: nextNote,
+        buyer_name: nextBuyerName,
+        buyer_email: nextBuyerEmail,
         tags: form.tags
           .split(',')
           .map((t) => t.trim())
@@ -205,21 +223,14 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
         flash(result.error, true)
         return
       }
-      setPiece(result.data!)
-      setForm((prev) => ({
-        ...prev,
-        sold: result.data!.sold,
-        sold_note: result.data!.sold_note ?? '',
-        featured: result.data!.featured,
-      }))
       setSoldPromptOpen(false)
-      flash(
+      const notice =
         overrides?.sold === true
           ? 'Marked sold — archived to the sold partition.'
           : overrides?.sold === false
             ? 'Back on the forge — listed as available.'
             : 'Piece saved.'
-      )
+      router.push(`/admin?saved=${encodeURIComponent(notice)}`)
     })
   }
 
@@ -229,7 +240,18 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
       flash('Add a sentence or two about where this piece ended up.', true)
       return
     }
-    save({ sold: true, sold_note: note, featured: false })
+    const email = buyerEmailDraft.trim()
+    if (email && !email.includes('@')) {
+      flash('Buyer email looks off — fix it or leave it blank.', true)
+      return
+    }
+    save({
+      sold: true,
+      sold_note: note,
+      buyer_name: buyerNameDraft.trim() || null,
+      buyer_email: email || null,
+      featured: false,
+    })
   }
 
   const markAvailableAgain = () => {
@@ -318,6 +340,8 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
                 type="button"
                 onClick={() => {
                   setSoldNoteDraft(form.sold_note)
+                  setBuyerNameDraft(form.buyer_name)
+                  setBuyerEmailDraft(form.buyer_email)
                   setSoldPromptOpen(true)
                   setError(null)
                 }}
@@ -340,6 +364,35 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
                   placeholder="e.g. Found a home with a collector in Boulder — anniversary gift."
                   className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54] resize-none"
                 />
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest text-[#71717A] font-bold mb-2">
+                      Buyer name
+                    </label>
+                    <input
+                      value={buyerNameDraft}
+                      onChange={(e) => setBuyerNameDraft(e.target.value)}
+                      placeholder="For review requests"
+                      className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest text-[#71717A] font-bold mb-2">
+                      Buyer email
+                    </label>
+                    <input
+                      type="email"
+                      value={buyerEmailDraft}
+                      onChange={(e) => setBuyerEmailDraft(e.target.value)}
+                      placeholder="Needed to request a review later"
+                      className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-[#71717A]">
+                  Three days after sale, the Reviews icon lights up so you can email them a
+                  request.
+                </p>
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
@@ -387,6 +440,23 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
                 className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54] resize-none"
               />
             </Field>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="Buyer name">
+                <input
+                  value={form.buyer_name}
+                  onChange={(e) => setForm({ ...form, buyer_name: e.target.value })}
+                  className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
+                />
+              </Field>
+              <Field label="Buyer email">
+                <input
+                  type="email"
+                  value={form.buyer_email}
+                  onChange={(e) => setForm({ ...form, buyer_email: e.target.value })}
+                  className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
+                />
+              </Field>
+            </div>
           </div>
         )}
 

@@ -27,6 +27,10 @@ export type ShopPiece = {
   description: string | null
   /** Where the piece ended up — set when marking sold. */
   sold_note: string | null
+  /** When the piece was marked sold (for review-request timing). */
+  sold_at: string | null
+  buyer_name: string | null
+  buyer_email: string | null
   tags: string[] | null
   specs: PieceSpecs | null
   created_at: string | null
@@ -76,6 +80,32 @@ export type Review = {
   location: string
   rating: number
   sort_order: number
+  image_url: string | null
+  status: 'pending' | 'published'
+  piece_id: string | null
+  invite_id: string | null
+  source: 'admin' | 'invite'
+  created_at: string | null
+}
+
+export type ReviewInvite = {
+  id: string
+  piece_id: string
+  token: string
+  buyer_name: string
+  buyer_email: string
+  status: 'sent' | 'submitted' | 'dismissed'
+  sent_at: string
+  submitted_at: string | null
+  created_at: string
+}
+
+/** Sold piece that may need a review invite. */
+export type ReviewCandidate = {
+  piece: ShopPiece
+  daysSinceSold: number
+  ready: boolean
+  invite: ReviewInvite | null
 }
 
 /** Personal / hobby photos for the Know Mark bridge. */

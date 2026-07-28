@@ -62,6 +62,8 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
 
   const [markAsSold, setMarkAsSold] = useState(false)
   const [soldNote, setSoldNote] = useState('')
+  const [buyerName, setBuyerName] = useState('')
+  const [buyerEmail, setBuyerEmail] = useState('')
 
   const [showOtherCategory, setShowOtherCategory] = useState(false)
 
@@ -283,6 +285,9 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
         specs: formData.specs,
         sold: markAsSold,
         sold_note: markAsSold ? soldNote.trim() || null : null,
+        sold_at: markAsSold ? new Date().toISOString() : null,
+        buyer_name: markAsSold ? buyerName.trim() || null : null,
+        buyer_email: markAsSold ? buyerEmail.trim().toLowerCase() || null : null,
         featured: false,
       },
     ])
@@ -664,14 +669,30 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
                 Archives this piece on save. Optional note for the sold listing.
               </span>
               {markAsSold && (
-                <textarea
-                  rows={3}
-                  value={soldNote}
-                  onChange={(e) => setSoldNote(e.target.value)}
-                  placeholder="e.g. Anniversary gift — found a home in Boulder."
-                  className="w-full bg-[#0A0C10] border border-[#B59A54]/40 p-3 text-sm text-white outline-none focus:border-[#B59A54] resize-none"
-                  onClick={(e) => e.stopPropagation()}
-                />
+                <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                  <textarea
+                    rows={3}
+                    value={soldNote}
+                    onChange={(e) => setSoldNote(e.target.value)}
+                    placeholder="e.g. Anniversary gift — found a home in Boulder."
+                    className="w-full bg-[#0A0C10] border border-[#B59A54]/40 p-3 text-sm text-white outline-none focus:border-[#B59A54] resize-none"
+                  />
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    <input
+                      value={buyerName}
+                      onChange={(e) => setBuyerName(e.target.value)}
+                      placeholder="Buyer name"
+                      className="w-full bg-[#0A0C10] border border-[#B59A54]/40 p-3 text-sm text-white outline-none focus:border-[#B59A54]"
+                    />
+                    <input
+                      type="email"
+                      value={buyerEmail}
+                      onChange={(e) => setBuyerEmail(e.target.value)}
+                      placeholder="Buyer email (for reviews)"
+                      className="w-full bg-[#0A0C10] border border-[#B59A54]/40 p-3 text-sm text-white outline-none focus:border-[#B59A54]"
+                    />
+                  </div>
+                </div>
               )}
             </span>
           </label>

@@ -94,7 +94,7 @@ export default function KnowMarkGallery({ moments, showContactCta = true }: Prop
         {showContactCta && (
           <div className="mt-20 text-center border-t border-white/5 pt-12">
             <p className="text-[#71717A] text-sm mb-6 max-w-md mx-auto">
-              Want to talk about a piece — or just say hello? Mark answers himself.
+              Want to talk about a piece — or just say hello? I'll answer you myself.
             </p>
             <ContactTrigger className="inline-block bg-[#B59A54] text-black display-font tracking-[0.2em] px-10 py-4 hover:bg-white transition-colors">
               Contact Mark

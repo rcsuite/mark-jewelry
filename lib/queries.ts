@@ -110,6 +110,9 @@ export function normalizePiece(row: Record<string, unknown>): ShopPiece {
       : [],
     description: (row.description as string | null) ?? null,
     sold_note: (row.sold_note as string | null) ?? null,
+    sold_at: (row.sold_at as string | null) ?? null,
+    buyer_name: (row.buyer_name as string | null) ?? null,
+    buyer_email: (row.buyer_email as string | null) ?? null,
     tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
     specs: (row.specs as ShopPiece['specs']) ?? null,
     created_at: (row.created_at as string | null) ?? null,
@@ -137,6 +140,8 @@ function normalizeVideos(raw: unknown): VideoSession[] {
 }
 
 export function toReview(row: Record<string, unknown>): Review {
+  const status = row.status === 'pending' ? 'pending' : 'published'
+  const source = row.source === 'invite' ? 'invite' : 'admin'
   return {
     id: String(row.id),
     quote: String(row.quote ?? ''),
@@ -144,6 +149,12 @@ export function toReview(row: Record<string, unknown>): Review {
     location: String(row.location ?? ''),
     rating: Number(row.rating ?? 5),
     sort_order: Number(row.sort_order ?? 0),
+    image_url: (row.image_url as string | null) ?? null,
+    status,
+    piece_id: row.piece_id ? String(row.piece_id) : null,
+    invite_id: row.invite_id ? String(row.invite_id) : null,
+    source,
+    created_at: (row.created_at as string | null) ?? null,
   }
 }
 
@@ -172,15 +183,33 @@ export async function getMarkMoments(): Promise<MarkMoment[]> {
   return (data ?? []).map((row) => toMarkMoment(row as Record<string, unknown>))
 }
 
+/** Published reviews for the public homepage. */
 export async function getReviews(): Promise<Review[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('reviews')
     .select('*')
+    .eq('status', 'published')
     .order('sort_order', { ascending: true })
 
   if (error) {
     console.error('getReviews:', error.message)
+    return []
+  }
+
+  return (data ?? []).map((row) => toReview(row as Record<string, unknown>))
+}
+
+/** All reviews for admin (pending + published). */
+export async function getAllReviews(): Promise<Review[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('getAllReviews:', error.message)
     return []
   }
 

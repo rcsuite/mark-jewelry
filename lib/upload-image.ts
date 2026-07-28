@@ -3,6 +3,7 @@ import { ensureAuthenticatedSession, isPersistentImageUrl } from '@/lib/auth-ses
 
 export const FORGE_IMAGES_BUCKET = 'forge-images'
 export const SHOP_INVENTORY_BUCKET = 'shop-inventory'
+export const REVIEW_PHOTOS_BUCKET = 'review-photos'
 
 function extensionForMime(mimeType: string): string {
   if (mimeType === 'image/png') return 'png'

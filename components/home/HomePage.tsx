@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import ContactTrigger from '@/components/chat/ContactTrigger'
+import ReviewCard from '@/components/home/ReviewCard'
 import type { Category, CurrentBuild, HeroSlide, Review, ShopPiece } from '@/lib/types'
 import { CATEGORY_GRID_CLASS, categoryItemWidthClass } from '@/lib/category-layout'
 
@@ -237,25 +238,7 @@ export default function HomePage({
         {reviews.length > 0 ? (
           <div className="grid md:grid-cols-3 gap-8">
             {reviews.map((review) => (
-              <div
-                key={review.id}
-                className="bg-[#0A0C10] p-8 border border-white/5 relative group rounded-sm overflow-hidden"
-              >
-                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-[#14B8A6] opacity-5 blur-3xl group-hover:opacity-10 transition-opacity"></div>
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#A1A1AA] mb-1 font-semibold">
-                  <span>{review.rating.toFixed(1)}</span>{' '}
-                  <span className="labradorite-flash">
-                    {'★'.repeat(Math.max(1, Math.round(review.rating)))}
-                  </span>
-                </div>
-                <p className="text-lg md:text-xl font-bold leading-relaxed mb-6 uppercase text-white tracking-wide">
-                  &quot;{review.quote}&quot;
-                </p>
-                <p className="text-xs tracking-[0.2em] uppercase metal-oxidized font-bold">
-                  — {review.author}
-                  {review.location ? `, ${review.location}` : ''}
-                </p>
-              </div>
+              <ReviewCard key={review.id} review={review} />
             ))}
           </div>
         ) : (

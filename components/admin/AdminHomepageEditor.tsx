@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Cropper, { Area } from 'react-easy-crop'
 import {
   createCategory,
@@ -16,6 +17,7 @@ import {
   upsertReview,
 } from '@/lib/actions'
 import { PencilButton, SortableList } from '@/components/admin/SortableList'
+import ReviewCard from '@/components/home/ReviewCard'
 import { createClient } from '@/lib/supabase/client'
 import { getCroppedImageBlob } from '@/lib/crop-image'
 import { CROP_ASPECT_OPTIONS } from '@/lib/crop-aspect'
@@ -49,6 +51,8 @@ export default function AdminHomepageEditor({
   forgeActive,
   settings: initialSettings,
 }: Props) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [bannerUrl, setBannerUrl] = useState(resolveHeroBannerUrl(build?.hero_image))
   const [slides, setSlides] = useState(initialSlides)
   const [categories, setCategories] = useState(initialCategories)
@@ -58,6 +62,7 @@ export default function AdminHomepageEditor({
   const [settings, setSettings] = useState(initialSettings)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [savedOverlay, setSavedOverlay] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const [slideIndex, setSlideIndex] = useState(0)
 
@@ -81,12 +86,30 @@ export default function AdminHomepageEditor({
   const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
+    const saved = searchParams.get('saved')
+    if (!saved) return
+    setSavedOverlay(saved)
+    router.replace('/admin', { scroll: false })
+  }, [searchParams, router])
+
+  useEffect(() => {
+    if (!savedOverlay) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSavedOverlay(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [savedOverlay])
+
+  useEffect(() => {
     if (slides.length <= 1) return
     const interval = setInterval(() => {
       setSlideIndex((prev) => (prev + 1) % slides.length)
     }, 5500)
     return () => clearInterval(interval)
   }, [slides])
+
+  const dismissSavedOverlay = () => setSavedOverlay(null)
 
   const flash = (msg: string, isError = false) => {
     if (isError) {
@@ -335,7 +358,7 @@ export default function AdminHomepageEditor({
             href="/admin/mark"
             className="text-[10px] font-bold tracking-widest uppercase border border-black/30 px-4 py-2 hover:bg-black hover:text-[#14B8A6]"
           >
-            Know Mark
+           Edit → Know Mark 
           </Link>
           <Link
             href="/admin/add-piece"
@@ -535,22 +558,15 @@ export default function AdminHomepageEditor({
           renderItem={(review, { isDragging, dragHandleProps }) => (
             <div
               {...dragHandleProps}
-              className={`relative bg-[#0A0C10] p-8 border cursor-grab active:cursor-grabbing ${
-                isDragging ? 'border-[#00F2FE] opacity-60' : 'border-white/5 hover:border-[#14B8A6]'
+              className={`relative cursor-grab active:cursor-grabbing ${
+                isDragging ? 'opacity-60 ring-2 ring-[#00F2FE]' : ''
               }`}
             >
               <PencilButton onClick={() => openReviewEdit(review)} label="Edit review" />
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#A1A1AA] mb-1 font-semibold">
-                <span>{review.rating.toFixed(1)}</span>{' '}
-                <span className="labradorite-flash">{'★'.repeat(Math.round(review.rating))}</span>
-              </div>
-              <p className="text-lg font-bold leading-relaxed mb-6 uppercase text-white tracking-wide pr-10">
-                &quot;{review.quote}&quot;
-              </p>
-              <p className="text-xs tracking-[0.2em] uppercase metal-oxidized font-bold">
-                — {review.author}
-                {review.location ? `, ${review.location}` : ''}
-              </p>
+              <ReviewCard
+                review={review}
+                className={isDragging ? 'border-[#00F2FE]' : 'hover:border-[#14B8A6]'}
+              />
             </div>
           )}
         />
@@ -1006,6 +1022,39 @@ export default function AdminHomepageEditor({
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {savedOverlay && (
+        <div
+          className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="piece-saved-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label="Dismiss"
+            onClick={dismissSavedOverlay}
+          />
+          <div className="relative bg-[#0A0C10] border border-[#27272A] p-8 max-w-md w-full shadow-2xl">
+            <div className="absolute top-0 left-0 w-full h-1 bg-[#14B8A6]" />
+            <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6] mb-3">
+              Saved
+            </p>
+            <h2 id="piece-saved-title" className="text-3xl display-font text-white mb-3">
+              Got it.
+            </h2>
+            <p className="text-[#A1A1AA] text-sm leading-relaxed mb-8">{savedOverlay}</p>
+            <button
+              type="button"
+              onClick={dismissSavedOverlay}
+              className="w-full bg-[#14B8A6] text-black display-font text-xl py-4 border-2 border-[#14B8A6] hover:bg-transparent hover:text-[#14B8A6]"
+            >
+              Back to editing
+            </button>
           </div>
         </div>
       )}

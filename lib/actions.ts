@@ -221,6 +221,8 @@ export type PieceUpdateInput = {
   manual_price?: boolean
   description?: string | null
   sold_note?: string | null
+  buyer_name?: string | null
+  buyer_email?: string | null
   tags?: string[]
   specs?: ShopPiece['specs']
   photos?: string[]
@@ -248,6 +250,15 @@ export async function updatePiece(input: PieceUpdateInput): Promise<ActionResult
   }
   if (input.sold !== undefined) patch.sold = input.sold
   if (input.sold_note !== undefined) patch.sold_note = input.sold_note
+  if (input.buyer_name !== undefined) patch.buyer_name = input.buyer_name
+  if (input.buyer_email !== undefined) {
+    patch.buyer_email = input.buyer_email?.trim().toLowerCase() || null
+  }
+  if (input.sold === true) {
+    patch.sold_at = new Date().toISOString()
+  } else if (input.sold === false) {
+    patch.sold_at = null
+  }
   if (input.manual_price !== undefined) patch.manual_price = input.manual_price
   if (input.featured !== undefined) {
     patch.featured = input.featured
@@ -450,6 +461,8 @@ export async function upsertReview(input: {
   author: string
   location: string
   rating: number
+  image_url?: string | null
+  status?: 'pending' | 'published'
 }): Promise<ActionResult<Review>> {
   const { supabase, user } = await requireUser()
   if (!user) return { ok: false, error: 'Unauthorized.' }
@@ -458,20 +471,36 @@ export async function upsertReview(input: {
   const author = input.author.trim()
   if (!quote || !author) return { ok: false, error: 'Quote and author are required.' }
 
+  if (input.image_url) {
+    try {
+      assertPersistentImageUrls([input.image_url])
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Invalid photo URL.' }
+    }
+  }
+
+  const image_url = input.image_url === undefined ? undefined : input.image_url || null
+  const status = input.status ?? 'published'
+
   if (input.id) {
+    const patch: Record<string, unknown> = {
+      quote,
+      author,
+      location: input.location.trim(),
+      rating: input.rating,
+      status,
+    }
+    if (image_url !== undefined) patch.image_url = image_url
+
     const { data, error } = await supabase
       .from('reviews')
-      .update({
-        quote,
-        author,
-        location: input.location.trim(),
-        rating: input.rating,
-      })
+      .update(patch)
       .eq('id', input.id)
       .select('*')
       .single()
     if (error) return { ok: false, error: error.message }
     revalidateStorefront()
+    revalidatePath('/admin/reviews')
     return { ok: true, data: toReview(data as Record<string, unknown>) }
   }
 
@@ -490,12 +519,16 @@ export async function upsertReview(input: {
       location: input.location.trim(),
       rating: input.rating,
       sort_order: Number(maxRow?.sort_order ?? 0) + 10,
+      image_url: image_url ?? null,
+      status,
+      source: 'admin',
     })
     .select('*')
     .single()
 
   if (error) return { ok: false, error: error.message }
   revalidateStorefront()
+  revalidatePath('/admin/reviews')
   return { ok: true, data: toReview(data as Record<string, unknown>) }
 }
 

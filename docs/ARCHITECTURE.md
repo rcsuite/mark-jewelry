@@ -120,12 +120,34 @@ Server Action, never by a client-side insert.
 | `location` | text | Optional place |
 | `rating` | numeric | Stars (default 5) |
 | `sort_order` | int | Drag order on homepage |
+| `image_url` | text, nullable | Optional bleed photo (person or jewelry-on) |
+| `status` | text | `pending` (from invite) or `published` (homepage) |
+| `piece_id` | uuid, nullable | Sold piece the review is about |
+| `invite_id` | uuid, nullable | Invite that collected it |
+| `source` | text | `admin` or `invite` |
+
+Public pages only load `status = 'published'`. Mark approves pending reviews from
+`/admin/reviews`.
+
+### `review_invites` — Manual review requests
+
+| Column | Type | Notes |
+|---|---|---|
+| `piece_id` | uuid | Sold piece |
+| `token` | text, unique | Magic link `/review/[token]` |
+| `buyer_name` / `buyer_email` | text | Snapshot at send time |
+| `status` | text | `sent` · `submitted` · `dismissed` |
+
+Mark sends from `/admin/reviews` (top-bar paper/pencil lights up 3 days after
+`shop_inventory.sold_at` when buyer email is on file). Resend emails the link.
 
 ### `shop_inventory` extras for homepage editing
 
 | Column | Type | Notes |
 |---|---|---|
 | `sold` | bool | True → sold strip, hidden from shop |
+| `sold_at` | timestamptz | Set when marked sold; drives the 3-day review badge |
+| `buyer_name` / `buyer_email` | text | For review invites |
 | `sort_order` | int | Order within a category |
 | `featured` | bool | True → Available Handiworks |
 | `featured_sort_order` | int | Drag order on the handiworks strip |

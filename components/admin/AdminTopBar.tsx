@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { countUnreadForMark } from '@/lib/chat-actions'
+import { countReviewDue } from '@/lib/review-actions'
 import type { SilverQuote } from '@/lib/silver'
 import type { Category, ShopPiece } from '@/lib/types'
 import AdminSilverStrip from '@/components/admin/AdminSilverStrip'
@@ -15,12 +16,20 @@ const FUTURES_URL = 'https://www.google.com/search?q=COMEX+silver+futures+SI%3DF
 type Props = {
   silver: SilverQuote | null
   initialUnread: number
+  initialReviewDue: number
   pieces: ShopPiece[]
   categories: Category[]
 }
 
-export default function AdminTopBar({ silver, initialUnread, pieces, categories }: Props) {
+export default function AdminTopBar({
+  silver,
+  initialUnread,
+  initialReviewDue,
+  pieces,
+  categories,
+}: Props) {
   const [unread, setUnread] = useState(initialUnread)
+  const [reviewDue, setReviewDue] = useState(initialReviewDue)
   const [gearOpen, setGearOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const gearRef = useRef<HTMLDivElement>(null)
@@ -30,7 +39,8 @@ export default function AdminTopBar({ silver, initialUnread, pieces, categories 
   useEffect(() => {
     const id = window.setInterval(() => {
       void countUnreadForMark().then((n) => setUnread(n))
-    }, 5000)
+      void countReviewDue().then((n) => setReviewDue(n))
+    }, 15000)
     return () => window.clearInterval(id)
   }, [])
 
@@ -73,6 +83,43 @@ export default function AdminTopBar({ silver, initialUnread, pieces, categories 
 
         <div className="flex items-center gap-1 sm:gap-2 justify-end">
           <AdminPieceSearch pieces={pieces} categories={categories} silver={silver} />
+
+          <Link
+            href="/admin/reviews"
+            className={`relative w-10 h-10 flex items-center justify-center border transition-colors ${
+              reviewDue > 0
+                ? 'border-[#14B8A6] text-[#14B8A6] bg-[#14B8A6]/15 shadow-[0_0_12px_rgba(20,184,166,0.35)]'
+                : 'border-[#27272A] text-[#A1A1AA] hover:border-[#14B8A6] hover:text-white'
+            }`}
+            aria-label={
+              reviewDue > 0
+                ? `${reviewDue} review request${reviewDue === 1 ? '' : 's'} ready`
+                : 'Reviews'
+            }
+            title="Reviews"
+          >
+            {/* Paper + pencil */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M6 3h9l3 3v15H6V3z"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinejoin="round"
+              />
+              <path d="M14 3v4h4" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+              <path
+                d="M9 13l6.5-6.5 1.5 1.5L10.5 14.5 8 15l1-2z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {reviewDue > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[1.1rem] h-4 px-1 rounded-full bg-[#14B8A6] text-black text-[9px] font-bold flex items-center justify-center">
+                {reviewDue > 9 ? '9+' : reviewDue}
+              </span>
+            )}
+          </Link>
 
           <Link
             href="/admin/messages"
