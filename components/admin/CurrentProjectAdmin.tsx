@@ -6,12 +6,22 @@ import { createClient } from '@/lib/supabase/client'
 import { getCroppedImageBlob } from '@/lib/crop-image'
 import { CROP_ASPECT_OPTIONS } from '@/lib/crop-aspect'
 import { OTHER_CATEGORY, slugify } from '@/lib/categories'
-import { createCategory } from '@/lib/actions'
+import { createCategory, finalizeCurrentBuild, updateHomepageBanner } from '@/lib/actions'
+import { resolveHeroBannerUrl } from '@/lib/hero'
 import { FORGE_IMAGES_BUCKET, uploadImageBlob } from '@/lib/upload-image'
 import { assertPersistentImageUrls } from '@/lib/auth-session'
+import {
+  photoSlotsFromUrls,
+  SortableList,
+  urlsFromPhotoSlots,
+  type PhotoSlot,
+} from '@/components/admin/SortableList'
+import { PIECE_MAKERS, type PieceMaker } from '@/lib/makers'
 import type { Category, CurrentBuild, VideoSession } from '@/lib/types'
 
 const supabase = createClient()
+
+type CropTarget = { kind: 'progress'; slotId: string } | { kind: 'hero' }
 
 type CurrentProjectAdminProps = {
   build: CurrentBuild | null
@@ -28,7 +38,9 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
 
   const [formData, setFormData] = useState({
     id: build?.id ?? '',
-    progress_images: build?.progress_images?.length ? build.progress_images : [''],
+    progress_images: (build?.progress_images?.length
+      ? photoSlotsFromUrls(build.progress_images)
+      : [{ id: crypto.randomUUID(), url: '' }]) as PhotoSlot[],
     video_archive: (build?.video_archive ?? []) as VideoSession[],
     description: build?.description ?? '',
     status: build?.status ?? 'active',
@@ -36,8 +48,9 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
   })
 
   const [newVideoUrl, setNewVideoUrl] = useState('')
+  const [heroPreview, setHeroPreview] = useState(resolveHeroBannerUrl(build?.hero_image))
 
-  const [activeCropIndex, setActiveCropIndex] = useState<number | null>(null)
+  const [cropTarget, setCropTarget] = useState<CropTarget | null>(null)
   const [imageSrc, setImageSrc] = useState<string | null>(null)
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
@@ -56,15 +69,20 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
     material: '',
     tags: '',
     primaryImage: '',
+    made_by: 'mark' as PieceMaker,
   })
 
-  const handleFileClick = (index: number) => {
-    setActiveCropIndex(index)
+  const openCropper = (target: CropTarget) => {
+    setCropTarget(target)
     setCroppedAreaPixels(null)
-    setAspect(undefined)
+    setAspect(target.kind === 'hero' ? 16 / 10 : undefined)
     setZoom(1)
     setCrop({ x: 0, y: 0 })
     document.getElementById('image-upload')?.click()
+  }
+
+  const handleFileClick = (slotId: string) => {
+    openCropper({ kind: 'progress', slotId })
   }
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,8 +93,15 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
     }
   }
 
+  const closeCropper = () => {
+    if (imageSrc) URL.revokeObjectURL(imageSrc)
+    setImageSrc(null)
+    setCropTarget(null)
+    setCroppedAreaPixels(null)
+  }
+
   const generateCropAndSave = async () => {
-    if (activeCropIndex === null || !imageSrc || !croppedAreaPixels) {
+    if (!cropTarget || !imageSrc || !croppedAreaPixels) {
       setErrorMessage('Adjust the crop before saving.')
       return
     }
@@ -86,25 +111,45 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
     setStatusMessage(null)
 
     try {
-      const folder = formData.id || 'draft'
       const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels)
-      const publicUrl = await uploadImageBlob(
-        supabase,
-        FORGE_IMAGES_BUCKET,
-        `builds/${folder}`,
-        blob,
-        `step-${activeCropIndex + 1}-${Date.now()}`
-      )
 
-      const newImages = [...formData.progress_images]
-      newImages[activeCropIndex] = publicUrl
-      setFormData({ ...formData, progress_images: newImages })
-      setStatusMessage('Progress image uploaded to Storage.')
+      if (cropTarget.kind === 'hero') {
+        const publicUrl = await uploadImageBlob(
+          supabase,
+          FORGE_IMAGES_BUCKET,
+          'homepage',
+          blob,
+          `banner-${Date.now()}`
+        )
+        const result = await updateHomepageBanner(publicUrl)
+        if (!result.ok) {
+          setErrorMessage(result.error)
+          return
+        }
+        const nextBanner = result.data!.hero_image
+        setHeroPreview(nextBanner)
+        setFormData((prev) => ({ ...prev, hero_image: nextBanner }))
+        setStatusMessage('Homepage hero banner updated. Visible on / and /admin.')
+      } else {
+        const folder = formData.id || 'draft'
+        const publicUrl = await uploadImageBlob(
+          supabase,
+          FORGE_IMAGES_BUCKET,
+          `builds/${folder}`,
+          blob,
+          `step-${Date.now()}`
+        )
 
-      URL.revokeObjectURL(imageSrc)
-      setImageSrc(null)
-      setActiveCropIndex(null)
-      setCroppedAreaPixels(null)
+        setFormData((prev) => ({
+          ...prev,
+          progress_images: prev.progress_images.map((p) =>
+            p.id === cropTarget.slotId ? { ...p, url: publicUrl } : p
+          ),
+        }))
+        setStatusMessage('Progress image uploaded to Storage.')
+      }
+
+      closeCropper()
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Upload failed.')
     } finally {
@@ -113,14 +158,18 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
   }
 
   const addProgressStep = () => {
-    setFormData({ ...formData, progress_images: [...formData.progress_images, ''] })
-  }
-
-  const removeProgressStep = (index: number) => {
-    const newImages = formData.progress_images.filter((_, i) => i !== index)
     setFormData({
       ...formData,
-      progress_images: newImages.length > 0 ? newImages : [''],
+      progress_images: [...formData.progress_images, { id: crypto.randomUUID(), url: '' }],
+    })
+  }
+
+  const removeProgressStep = (slotId: string) => {
+    const newImages = formData.progress_images.filter((p) => p.id !== slotId)
+    setFormData({
+      ...formData,
+      progress_images:
+        newImages.length > 0 ? newImages : [{ id: crypto.randomUUID(), url: '' }],
     })
   }
 
@@ -139,8 +188,8 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
     setNewVideoUrl('')
   }
 
-  const removeVideo = (index: number) => {
-    const newVideos = formData.video_archive.filter((_, i) => i !== index)
+  const removeVideo = (id: number) => {
+    const newVideos = formData.video_archive.filter((v) => v.id !== id)
     const renumberedVideos = newVideos.map((vid, i) => ({
       ...vid,
       title: `SESSION 0${i + 1}: LIVE FORGE`,
@@ -158,8 +207,8 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
     setErrorMessage(null)
     setStatusMessage(null)
 
-    const cleanImages = formData.progress_images.filter((img) => img.trim() !== '')
-    // hero_image is the homepage banner — edited on /admin, not overwritten here.
+    const cleanImages = urlsFromPhotoSlots(formData.progress_images).filter((img) => img.trim() !== '')
+    // hero_image is saved separately via updateHomepageBanner — do not overwrite here.
 
     const { error } = await supabase
       .from('current_build')
@@ -179,7 +228,10 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
       setFormData((prev) => ({
         ...prev,
         status: 'active',
-        progress_images: cleanImages.length > 0 ? cleanImages : [''],
+        progress_images:
+          cleanImages.length > 0
+            ? photoSlotsFromUrls(cleanImages)
+            : [{ id: crypto.randomUUID(), url: '' }],
       }))
     }
 
@@ -222,7 +274,7 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
     setErrorMessage(null)
     setStatusMessage(null)
 
-    const cleanImages = formData.progress_images.filter((img) => img.trim() !== '')
+    const cleanImages = urlsFromPhotoSlots(formData.progress_images).filter((img) => img.trim() !== '')
     const photos = listingData.primaryImage.trim()
       ? [listingData.primaryImage.trim(), ...cleanImages.filter((img) => img !== listingData.primaryImage.trim())]
       : cleanImages
@@ -262,61 +314,40 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
       )
     }
 
-    const pieceType = listingData.pieceType.trim() || 'Ring'
     const tagArray = listingData.tags
       .split(',')
       .map((tag) => tag.trim())
       .filter((tag) => tag !== '')
 
-    const { error: shopError } = await supabase.from('shop_inventory').insert([
-      {
-        title: listingData.title.trim(),
-        category: categorySlug,
-        categories: [categorySlug],
-        piece_type: pieceType,
-        price: parseFloat(listingData.price),
-        photos,
-        description: formData.description,
-        tags: tagArray,
-        specs: {
-          weight: listingData.weight,
-          size: listingData.size,
-          material: listingData.material,
-        },
-      },
-    ])
+    const result = await finalizeCurrentBuild({
+      buildId: formData.id,
+      title: listingData.title.trim(),
+      category: categorySlug,
+      pieceType: listingData.pieceType.trim() || 'Ring',
+      price: parseFloat(listingData.price),
+      photos,
+      description: formData.description,
+      tags: tagArray,
+      weight: listingData.weight,
+      size: listingData.size,
+      material: listingData.material,
+      progressImages: cleanImages,
+      videoArchive: formData.video_archive,
+      made_by: listingData.made_by,
+    })
 
-    if (shopError) {
-      setErrorMessage('Error creating shop listing: ' + shopError.message)
-      setIsSaving(false)
-      return
-    }
-
-    const { error: clearError } = await supabase
-      .from('current_build')
-      .update({
-        status: 'complete',
-        progress_images: [],
-        video_archive: [],
-        description: '',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', formData.id)
-
-    if (clearError) {
-      setErrorMessage(
-        'Piece was listed, but clearing the workbench failed: ' + clearError.message
-      )
+    if (!result.ok) {
+      setErrorMessage(result.error)
       setIsSaving(false)
       return
     }
 
     setShowListingModal(false)
-    setStatusMessage('Piece moved to shop inventory with photos[]. Workbench cleared.')
+    setStatusMessage('Piece moved to shop inventory. Forge archive saved for /workbench.')
     setFormData((prev) => ({
       ...prev,
       status: 'complete',
-      progress_images: [''],
+      progress_images: [{ id: crypto.randomUUID(), url: '' }],
       video_archive: [],
       description: '',
     }))
@@ -344,6 +375,9 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
 
       {imageSrc && (
         <div className="fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-6">
+          <h3 className="text-xl display-font text-white mb-4">
+            {cropTarget?.kind === 'hero' ? 'Crop homepage hero banner' : 'Crop progress photo'}
+          </h3>
           <div className="relative w-full max-w-4xl h-[60vh] bg-[#0A0C10] border border-[#27272A] rounded-sm overflow-hidden mb-4">
             <Cropper
               image={imageSrc}
@@ -389,12 +423,7 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
 
           <div className="flex gap-4">
             <button
-              onClick={() => {
-                URL.revokeObjectURL(imageSrc)
-                setImageSrc(null)
-                setActiveCropIndex(null)
-                setCroppedAreaPixels(null)
-              }}
+              onClick={closeCropper}
               disabled={isUploading}
               className="px-8 py-3 bg-[#0A0C10] border border-[#27272A] text-white hover:border-[#71717A] uppercase tracking-widest text-xs font-bold transition-colors disabled:opacity-50"
             >
@@ -405,7 +434,11 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
               disabled={isUploading || !croppedAreaPixels}
               className="px-8 py-3 bg-[#B59A54] text-black border border-[#B59A54] hover:bg-transparent hover:text-[#B59A54] uppercase tracking-widest text-xs font-bold transition-colors disabled:opacity-50"
             >
-              {isUploading ? 'Uploading…' : 'Crop & Upload to Timeline'}
+              {isUploading
+                ? 'Uploading…'
+                : cropTarget?.kind === 'hero'
+                  ? 'Crop & Save Hero Banner'
+                  : 'Crop & Upload to Timeline'}
             </button>
           </div>
         </div>
@@ -427,6 +460,31 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
               This will shut down the live feed and push the item to your shop, including all
               uploaded progress photos.
             </p>
+
+            <div className="mb-8">
+              <p className="text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-3">
+                Made by
+              </p>
+              <div className="grid grid-cols-2 gap-3 max-w-md">
+                {PIECE_MAKERS.map((maker) => {
+                  const selected = listingData.made_by === maker.id
+                  return (
+                    <button
+                      key={maker.id}
+                      type="button"
+                      onClick={() => setListingData({ ...listingData, made_by: maker.id })}
+                      className={`py-4 border display-font tracking-widest text-lg transition-colors ${
+                        selected
+                          ? 'border-[#14B8A6] bg-[#14B8A6]/15 text-[#00F2FE]'
+                          : 'border-[#27272A] text-[#A1A1AA] hover:border-[#14B8A6]'
+                      }`}
+                    >
+                      {maker.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
 
             <div className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
@@ -624,14 +682,66 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
           </div>
         )}
 
+        {/* Homepage hero banner — separate from progress timeline */}
+        <div className="mb-8 bg-[#0A0C10] border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-[#B59A54]" />
+          <div className="grid md:grid-cols-5 gap-0 items-stretch">
+            <div className="relative md:col-span-3 aspect-[16/10] md:aspect-auto md:min-h-[240px] bg-[#05070A] overflow-hidden border-b md:border-b-0 md:border-r border-[#27272A]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={heroPreview}
+                alt="Homepage hero banner"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
+              <p className="absolute top-3 left-3 z-10 text-[9px] font-bold tracking-widest uppercase bg-black/80 border border-[#B59A54]/50 text-[#B59A54] px-2 py-1">
+                Homepage hero · slide 1
+              </p>
+            </div>
+            <div className="md:col-span-2 p-6 md:p-8 flex flex-col justify-center gap-4">
+              <div>
+                <label className="block text-[#B59A54] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
+                  Homepage Hero Banner
+                </label>
+                <p className="text-[#A1A1AA] text-sm font-light leading-relaxed">
+                  First image on <span className="text-white">/</span> and{' '}
+                  <span className="text-white">/admin</span>. Stays when the forge rests.
+                  Progress photos below scroll <em>after</em> this banner when the build is
+                  active.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openCropper({ kind: 'hero' })}
+                disabled={isUploading}
+                className="w-fit border border-[#B59A54] text-[#B59A54] display-font tracking-widest text-sm px-6 py-3 hover:bg-[#B59A54] hover:text-black disabled:opacity-50"
+              >
+                Change hero banner
+              </button>
+              <Link
+                href="/admin"
+                className="text-[10px] font-bold tracking-widest uppercase text-[#71717A] hover:text-[#14B8A6]"
+              >
+                Also editable via pencil on /admin →
+              </Link>
+            </div>
+          </div>
+        </div>
+
         <div className="grid lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-7 space-y-8">
             <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
               <div className="absolute top-0 left-0 w-1 h-full bg-[#14B8A6]"></div>
               <div className="flex justify-between items-end mb-8 border-b border-[#27272A] pb-4">
-                <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase">
-                  The Build Timeline (Start to Finish)
-                </label>
+                <div>
+                  <label className="block text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase">
+                    The Build Timeline (Start to Finish)
+                  </label>
+                  <p className="text-[#71717A] text-xs mt-1">
+                    Drag steps to reorder — these scroll on the homepage <em>after</em> the hero
+                    banner
+                  </p>
+                </div>
                 <button
                   onClick={addProgressStep}
                   className="text-[#B59A54] text-[10px] uppercase tracking-widest font-bold hover:text-white"
@@ -640,50 +750,71 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
                 </button>
               </div>
 
-              <div className="space-y-4">
-                {formData.progress_images.map((img, index) => (
-                  <div
-                    key={index}
-                    className="flex gap-4 items-center bg-[#05070A] border border-[#27272A] p-3 rounded-sm group transition-colors hover:border-[#71717A]"
-                  >
-                    <span className="text-[#71717A] font-bold w-6 text-center text-xs">
-                      {index + 1}.
-                    </span>
+              <SortableList
+                items={formData.progress_images}
+                onReorder={(next) => setFormData({ ...formData, progress_images: next })}
+                className="space-y-4"
+                renderItem={(slot, { isDragging, dragHandleProps }) => {
+                  const index = formData.progress_images.findIndex((p) => p.id === slot.id)
+                  return (
+                    <div
+                      {...(slot.url ? dragHandleProps : { draggable: false as const })}
+                      className={`flex gap-4 items-center bg-[#05070A] border p-3 rounded-sm group transition-colors ${
+                        slot.url
+                          ? `cursor-grab active:cursor-grabbing ${
+                              isDragging
+                                ? 'border-[#00F2FE] opacity-60'
+                                : 'border-[#27272A] hover:border-[#14B8A6]'
+                            }`
+                          : 'border-[#27272A] hover:border-[#71717A]'
+                      }`}
+                    >
+                      <span className="text-[#71717A] font-bold w-6 text-center text-xs">
+                        {index + 1}.
+                      </span>
 
-                    {!img ? (
-                      <button
-                        onClick={() => handleFileClick(index)}
-                        className="bg-[#111419] border border-[#27272A] hover:border-[#14B8A6] text-[#71717A] hover:text-[#14B8A6] py-3 transition-colors text-[10px] font-bold tracking-widest uppercase flex-grow text-center"
-                      >
-                        📸 Select Image
-                      </button>
-                    ) : (
-                      <div className="flex-grow flex items-center justify-between pl-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[#14B8A6] text-lg">✓</span>
-                          <span className="text-white text-[10px] font-bold tracking-[0.2em] uppercase">
-                            Uploaded
-                          </span>
+                      {!slot.url ? (
+                        <button
+                          type="button"
+                          onClick={() => handleFileClick(slot.id)}
+                          className="bg-[#111419] border border-[#27272A] hover:border-[#14B8A6] text-[#71717A] hover:text-[#14B8A6] py-3 transition-colors text-[10px] font-bold tracking-widest uppercase flex-grow text-center"
+                        >
+                          📸 Select Image
+                        </button>
+                      ) : (
+                        <div className="flex-grow flex items-center justify-between pl-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#14B8A6] text-lg">✓</span>
+                            <span className="text-white text-[10px] font-bold tracking-[0.2em] uppercase">
+                              Uploaded
+                            </span>
+                          </div>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={slot.url}
+                            className="h-10 w-16 object-cover border border-[#27272A] pointer-events-none"
+                            alt={`Step ${index + 1}`}
+                            draggable={false}
+                          />
                         </div>
-                        <img
-                          src={img}
-                          className="h-10 w-16 object-cover border border-[#27272A]"
-                          alt={`Step ${index + 1}`}
-                        />
-                      </div>
-                    )}
+                      )}
 
-                    {formData.progress_images.length > 1 && (
-                      <button
-                        onClick={() => removeProgressStep(index)}
-                        className="text-red-900 group-hover:text-red-500 text-xl font-bold ml-2 px-2 transition-colors"
-                      >
-                        &times;
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+                      {formData.progress_images.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            removeProgressStep(slot.id)
+                          }}
+                          className="text-red-900 group-hover:text-red-500 text-xl font-bold ml-2 px-2 transition-colors"
+                        >
+                          &times;
+                        </button>
+                      )}
+                    </div>
+                  )
+                }}
+              />
             </div>
 
             <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
@@ -706,8 +837,9 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
               <div className="absolute top-0 left-0 w-1 h-full bg-[#00F2FE]"></div>
               <h2 className="text-2xl display-font mb-2 text-white">Livestream Archive</h2>
               <p className="text-[#A1A1AA] text-xs mb-8 leading-relaxed font-light">
-                Paste your Facebook Live URL here. We will automatically format it into a session
-                card.
+                After a Facebook Live ends, paste the video URL here. Sessions show on{' '}
+                <span className="text-white">/workbench</span> newest-first — drag to reorder.
+                Publish Workbench Update to push them live.
               </p>
 
               <div className="flex gap-2 mb-8 border-b border-[#27272A] pb-8">
@@ -728,31 +860,51 @@ export default function CurrentProjectAdmin({ build, categories }: CurrentProjec
 
               <div className="space-y-3">
                 <label className="block text-[#71717A] text-[10px] font-bold tracking-[0.2em] uppercase mb-4">
-                  Saved Sessions
+                  Saved Sessions · drag to reorder
                 </label>
-                {formData.video_archive.map((video, index) => (
-                  <div
-                    key={video.id}
-                    className="bg-[#05070A] border border-[#27272A] p-4 flex justify-between items-center group transition-colors hover:border-[#71717A]"
-                  >
-                    <div>
-                      <div className="text-[10px] font-bold tracking-widest uppercase text-white">
-                        {video.title}
-                      </div>
-                      <div className="text-[10px] text-[#A1A1AA] mt-1 font-mono">{video.date}</div>
-                    </div>
-                    <button
-                      onClick={() => removeVideo(index)}
-                      className="text-red-900 group-hover:text-red-500 font-bold text-xl px-2 transition-colors"
-                    >
-                      &times;
-                    </button>
-                  </div>
-                ))}
-                {formData.video_archive.length === 0 && (
+                {formData.video_archive.length === 0 ? (
                   <div className="text-[#71717A] text-xs italic text-center py-8 border border-dashed border-[#27272A]">
                     No livestreams added yet.
                   </div>
+                ) : (
+                  <SortableList
+                    items={formData.video_archive}
+                    onReorder={(next) => {
+                      const renumbered = next.map((vid, i) => ({
+                        ...vid,
+                        title: `SESSION 0${i + 1}: LIVE FORGE`,
+                      }))
+                      setFormData({ ...formData, video_archive: renumbered })
+                    }}
+                    className="space-y-3"
+                    renderItem={(video, { isDragging, dragHandleProps }) => (
+                      <div
+                        {...dragHandleProps}
+                        className={`bg-[#05070A] border p-4 flex justify-between items-center group transition-colors cursor-grab active:cursor-grabbing ${
+                          isDragging
+                            ? 'border-[#00F2FE] opacity-60'
+                            : 'border-[#27272A] hover:border-[#14B8A6]'
+                        }`}
+                      >
+                        <div>
+                          <div className="text-[10px] font-bold tracking-widest uppercase text-white">
+                            {video.title}
+                          </div>
+                          <div className="text-[10px] text-[#A1A1AA] mt-1 font-mono">{video.date}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            removeVideo(video.id)
+                          }}
+                          className="text-red-900 group-hover:text-red-500 font-bold text-xl px-2 transition-colors"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    )}
+                  />
                 )}
               </div>
             </div>

@@ -1,8 +1,10 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import ContactTrigger from '@/components/chat/ContactTrigger'
+import SiteFooter from '@/components/SiteFooter'
+import { makerDisplayName } from '@/lib/makers'
 import { piecePriceLabel } from '@/lib/pricing'
-import { getPieceById } from '@/lib/queries'
+import { getPartnerById, getPieceById } from '@/lib/queries'
 import { getSilverSpotPerOz } from '@/lib/silver'
 
 type Props = {
@@ -14,6 +16,7 @@ export default async function ShopPiecePage({ params }: Props) {
   const [piece, spot] = await Promise.all([getPieceById(id), getSilverSpotPerOz()])
   if (!piece) notFound()
 
+  const partner = piece.partner_id ? await getPartnerById(piece.partner_id) : null
   const photo = piece.photos[0]
   const priceLabel = piecePriceLabel(piece, spot)
 
@@ -38,9 +41,7 @@ export default async function ShopPiecePage({ params }: Props) {
             <img
               src={photo}
               alt={piece.title}
-              className={`absolute inset-0 w-full h-full object-cover ${
-                piece.sold ? 'grayscale opacity-80' : ''
-              }`}
+              className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
             <span className="absolute inset-0 flex items-center justify-center text-xs text-white/20 display-font">
@@ -54,7 +55,31 @@ export default async function ShopPiecePage({ params }: Props) {
             {piece.piece_type}
             {piece.sold ? ' · Archived' : ''}
           </p>
-          <h1 className="display-font text-4xl md:text-5xl text-white mb-4">{piece.title}</h1>
+          <h1 className="display-font text-4xl md:text-5xl text-white mb-3">{piece.title}</h1>
+          <p className="text-sm tracking-[0.15em] uppercase text-[#A1A1AA] mb-2">
+            Made by{' '}
+            <span className="text-[#B59A54] font-semibold tracking-widest">
+              {makerDisplayName(piece.made_by)}
+            </span>
+          </p>
+          {partner && (
+            <p className="text-sm tracking-[0.12em] uppercase text-[#A1A1AA] mb-6">
+              {partner.credit_label}:{' '}
+              {partner.url ? (
+                <a
+                  href={partner.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#14B8A6] font-semibold tracking-widest hover:text-[#00F2FE]"
+                >
+                  {partner.name}
+                </a>
+              ) : (
+                <span className="text-[#14B8A6] font-semibold tracking-widest">{partner.name}</span>
+              )}
+            </p>
+          )}
+          {!partner && <div className="mb-4" />}
           <p
             className={`text-2xl font-bold mb-6 display-font tracking-wider ${
               piece.sold ? 'text-[#B59A54]' : 'text-white'
@@ -111,6 +136,8 @@ export default async function ShopPiecePage({ params }: Props) {
           )}
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   )
 }

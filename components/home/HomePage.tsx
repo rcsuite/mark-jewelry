@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import ContactTrigger from '@/components/chat/ContactTrigger'
 import ReviewCard from '@/components/home/ReviewCard'
+import MediaReveal from '@/components/ui/MediaReveal'
+import SiteFooter from '@/components/SiteFooter'
 import type { Category, CurrentBuild, HeroSlide, Review, ShopPiece } from '@/lib/types'
 import { CATEGORY_GRID_CLASS, categoryItemWidthClass } from '@/lib/category-layout'
 
@@ -94,7 +96,7 @@ export default function HomePage({
             href="/mark"
             className="text-xs tracking-[0.2em] uppercase font-bold text-[#A1A1AA] hover:text-[#14B8A6]"
           >
-            Know Mark
+            Joeline &amp; Mark
           </Link>
           <ContactTrigger className="text-xs tracking-[0.2em] uppercase font-bold text-[#A1A1AA] hover:text-[#14B8A6]">
             Contact
@@ -161,7 +163,7 @@ export default function HomePage({
             <div className="border-l-2 border-[#14B8A6] pl-6 py-1 mb-8">
               <p className="text-lg md:text-xl text-[#A1A1AA] font-light leading-relaxed min-h-[5rem]">
                 {forgeActive
-                  ? `I don't stockpile inventory. I forge one piece at a time. Right now, on the bench, ${
+                  ? `We don't stockpile inventory. We forge one piece at a time. Right now, on the bench, ${
                       build?.description || 'a new custom piece is underway.'
                     }`
                   : 'The anvil is currently resting. The previous piece has been finalized and moved to the vault. View the shop for available handiworks.'}
@@ -262,20 +264,23 @@ export default function HomePage({
                   className="group bg-[#05070A] border border-white/5 flex flex-col"
                 >
                   <Link
-                    href={`/shop?category=${piece.category}`}
+                    href={`/shop/${piece.id}`}
                     className="block flex-grow"
                   >
-                    <div className="aspect-square bg-[#111419] border-b border-white/5 relative overflow-hidden flex items-center justify-center grayscale group-hover:grayscale-0 transition-all duration-500">
+                    <MediaReveal className="aspect-square bg-[#111419] border-b border-white/5 flex items-center justify-center">
                       {piece.photos[0] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={piece.photos[0]}
                           alt={piece.title}
                           className="absolute inset-0 w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-xs text-white/20 display-font">[No Photo]</span>
+                        <span className="text-xs text-white/20 display-font relative z-[2]">
+                          [No Photo]
+                        </span>
                       )}
-                    </div>
+                    </MediaReveal>
                     <div className="p-6 pb-3">
                       <h4 className="text-xl display-font text-white mb-2 group-hover:text-[#14B8A6] transition-colors">
                         {piece.title}
@@ -352,23 +357,23 @@ export default function HomePage({
                   className="group relative bg-[#0A0C10] border border-white/5 overflow-hidden hover:border-[#B59A54]/60 transition-colors"
                   title={piece.title}
                 >
-                  <div className="aspect-square relative">
+                  <MediaReveal variant="sold" className="aspect-square">
                     {piece.photos[0] ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={piece.photos[0]}
                         alt={piece.title}
-                        className="w-full h-full object-cover grayscale opacity-75 group-hover:opacity-90 transition-opacity"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white/20 display-font">
+                      <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white/20 display-font z-[2]">
                         SOLD
                       </span>
                     )}
-                    <span className="absolute bottom-2 left-2 right-2 text-[9px] font-bold tracking-widest uppercase text-[#B59A54] bg-black/70 px-2 py-1 truncate">
+                    <span className="absolute bottom-2 left-2 right-2 z-[2] text-[9px] font-bold tracking-widest uppercase text-[#B59A54] bg-black/70 px-2 py-1 truncate">
                       Sold
                     </span>
-                  </div>
+                  </MediaReveal>
                   <div className="p-3">
                     <p className="text-xs text-white truncate display-font tracking-wide group-hover:text-[#B59A54]">
                       {piece.title}
@@ -391,19 +396,15 @@ export default function HomePage({
         </section>
       )}
 
-      <footer className="py-12 border-t border-white/5 bg-[#05070A] relative z-10 text-center">
-        <div className="text-sm tracking-[0.2em] uppercase font-bold text-white/30">
-          EARTHEN MINERS <span className="labradorite-teal">DESIGNS</span> &copy;{' '}
-          {new Date().getFullYear()}
-        </div>
+      <SiteFooter>
         <p className="text-xs text-white/20 mt-2 tracking-[0.15em] uppercase">
           Forged from earth & fire · USA
         </p>
         <p className="text-xs text-white/10 mt-2">Unapologetic Craft. No Molds. No Fluff.</p>
         <ContactTrigger className="inline-block mt-4 text-[10px] tracking-[0.2em] uppercase font-bold text-[#14B8A6]/70 hover:text-[#14B8A6]">
-          Contact Mark
+          Contact us
         </ContactTrigger>
-      </footer>
+      </SiteFooter>
     </div>
   )
 }

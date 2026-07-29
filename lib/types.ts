@@ -38,6 +38,19 @@ export type ShopPiece = {
   sort_order: number
   featured: boolean
   featured_sort_order: number
+  /** Artisan who made the piece — shown on /shop/[id]. */
+  made_by: 'mark' | 'joeline'
+  /** Optional credit partner (e.g. stone cutter). */
+  partner_id: string | null
+}
+
+export type Partner = {
+  id: string
+  /** e.g. "Stones Cut By" */
+  credit_label: string
+  name: string
+  url: string | null
+  created_at: string | null
 }
 
 export type VideoSession = {
@@ -55,6 +68,19 @@ export type CurrentBuild = {
   description: string | null
   video_archive: VideoSession[] | null
   updated_at: string | null
+}
+
+/** Snapshot of a finished workbench build (timeline + livestreams). */
+export type ForgeArchive = {
+  id: string
+  shop_piece_id: string | null
+  title: string
+  thumbnail_url: string
+  description: string | null
+  progress_images: string[]
+  video_archive: VideoSession[]
+  finalized_at: string
+  sort_order: number
 }
 
 export type HeroSlide = {

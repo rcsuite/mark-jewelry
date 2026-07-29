@@ -68,7 +68,7 @@ export default function PublicReviewForm({ invite }: Props) {
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-3xl display-font text-[#14B8A6]">Thank you</h1>
           <p className="text-[#A1A1AA] text-sm leading-relaxed">
-            Mark will see your words. Grateful you took a minute for{' '}
+            We&apos;ll see your words. Grateful you took a minute for{' '}
             <span className="text-white">{invite.piece_title}</span>.
           </p>
         </div>
@@ -99,7 +99,7 @@ export default function PublicReviewForm({ invite }: Props) {
           <h1 className="text-3xl md:text-4xl display-font">How&apos;s it treating you?</h1>
           <p className="text-[#A1A1AA] text-sm">
             A few words about <span className="text-white">{invite.piece_title}</span> mean a
-            lot to Mark.
+            lot to Joeline &amp; Mark.
           </p>
         </div>
 

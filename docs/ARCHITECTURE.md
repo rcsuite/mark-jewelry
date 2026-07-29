@@ -10,10 +10,12 @@ Mark forges one piece at a time. The site is built around that single "current b
 1. A build is **active**. The homepage hero scrolls its progress photos, `/workbench`
    shows the full timeline plus livestream sessions, and the CTA invites a visitor to
    claim the piece before it is finished.
-2. The build is **finalized**. It becomes a row in `shop_inventory`, the live feed is
-   cleared, and `status` flips to `complete`.
+2. The build is **finalized**. It becomes a row in `shop_inventory`, a snapshot is
+   written to `forge_archives` (timeline + livestreams + finished thumbnail), the live
+   feed is cleared, and `status` flips to `complete`.
 3. With no active build, the homepage shows a standby state and sends visitors to the
-   shop.
+   shop. `/workbench` still shows a **Past builds** strip; each thumb opens
+   `/workbench/[id]` with the archived forge layout.
 
 Everything a visitor sees is data. The admin panel owns it; page components only render
 it.
@@ -37,8 +39,9 @@ unreliable.
 
 ## Routes
 
-**Public** — `/` (homepage), `/shop` (The Vault), `/workbench` (live build), `/mark`
-(Know Mark). Contact is an in-page popup; see `docs/MESSAGING.md`.
+**Public** — `/` (homepage), `/shop` (The Vault), `/workbench` (live build + past-builds
+strip), `/workbench/[id]` (archived forge snapshot), `/mark` (Know Mark). Contact is an
+in-page popup; see `docs/MESSAGING.md`.
 
 **Admin**, all behind `proxy.ts` — `/admin` (hub), `/admin/current-project`,
 `/admin/add-piece`, `/admin/homepage`, `/admin/messages`, `/admin/mark`. `/login` is
@@ -69,6 +72,26 @@ The login form lets Mark type a bare handle and appends
 | `video_archive` | jsonb | Array of `{ id, title, date, url }` livestream sessions. |
 | `description` | text | Completes the sentence "Right now, on the bench…". |
 | `updated_at` | timestamptz | Shown as "Updated:" on the homepage. |
+
+### `forge_archives` — finished workbench snapshots
+
+Written when Mark finalizes a build. The live `current_build` timeline/videos are
+cleared; this table keeps the history for `/workbench`’s Past builds strip and
+`/workbench/[id]`.
+
+| column | type | notes |
+|---|---|---|
+| `id` | uuid | Route param for `/workbench/[id]`. |
+| `shop_piece_id` | uuid, nullable | Links to the vault listing created at finalize. |
+| `title` | text | Listing title at finalize time. |
+| `thumbnail_url` | text | Finished product photo (usually `photos[0]`). |
+| `description` | text | Bench copy at finalize. |
+| `progress_images` | text[] | Timeline snapshot. |
+| `video_archive` | jsonb | Livestream sessions kept after finalize. |
+| `finalized_at` | timestamptz | When the build left the anvil. |
+| `sort_order` | int | Display order on the Past builds strip. |
+
+Public `SELECT`; `authenticated` may write.
 
 ### `shop_inventory` — finished pieces
 

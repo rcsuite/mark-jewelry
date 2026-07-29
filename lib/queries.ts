@@ -1,12 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { resolveHeroBannerUrl } from '@/lib/hero'
+import { normalizePieceMaker } from '@/lib/makers'
 import { withLivePrice, withLivePrices } from '@/lib/pricing'
 import { getSilverSpotPerOz } from '@/lib/silver'
 import type {
   Category,
   CurrentBuild,
+  ForgeArchive,
   HeroSlide,
   MarkMoment,
+  Partner,
   Review,
   ShopPiece,
   SiteSettings,
@@ -120,7 +123,45 @@ export function normalizePiece(row: Record<string, unknown>): ShopPiece {
     sort_order: Number(row.sort_order ?? 0),
     featured: Boolean(row.featured),
     featured_sort_order: Number(row.featured_sort_order ?? 0),
+    made_by: normalizePieceMaker(row.made_by),
+    partner_id: row.partner_id ? String(row.partner_id) : null,
   }
+}
+
+export function toPartner(row: Record<string, unknown>): Partner {
+  return {
+    id: String(row.id),
+    credit_label: String(row.credit_label ?? ''),
+    name: String(row.name ?? ''),
+    url: (row.url as string | null)?.trim() || null,
+    created_at: (row.created_at as string | null) ?? null,
+  }
+}
+
+export async function getPartners(): Promise<Partner[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('partners')
+    .select('*')
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error('getPartners:', error.message)
+    return []
+  }
+
+  return (data ?? []).map((row) => toPartner(row as Record<string, unknown>))
+}
+
+export async function getPartnerById(id: string): Promise<Partner | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('partners').select('*').eq('id', id).maybeSingle()
+  if (error) {
+    console.error('getPartnerById:', error.message)
+    return null
+  }
+  if (!data) return null
+  return toPartner(data as Record<string, unknown>)
 }
 
 function normalizeVideos(raw: unknown): VideoSession[] {
@@ -242,6 +283,56 @@ export async function getCurrentBuild(): Promise<CurrentBuild | null> {
     video_archive: normalizeVideos(data.video_archive),
     updated_at: data.updated_at,
   }
+}
+
+export function toForgeArchive(row: Record<string, unknown>): ForgeArchive {
+  return {
+    id: String(row.id),
+    shop_piece_id: row.shop_piece_id ? String(row.shop_piece_id) : null,
+    title: String(row.title ?? ''),
+    thumbnail_url: String(row.thumbnail_url ?? ''),
+    description: (row.description as string | null) ?? null,
+    progress_images: Array.isArray(row.progress_images)
+      ? (row.progress_images as unknown[]).filter(
+          (p): p is string => typeof p === 'string' && p.trim() !== ''
+        )
+      : [],
+    video_archive: normalizeVideos(row.video_archive),
+    finalized_at: String(row.finalized_at ?? new Date().toISOString()),
+    sort_order: Number(row.sort_order ?? 0),
+  }
+}
+
+export async function getForgeArchives(): Promise<ForgeArchive[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('forge_archives')
+    .select('*')
+    .order('sort_order', { ascending: false })
+    .order('finalized_at', { ascending: false })
+
+  if (error) {
+    console.error('getForgeArchives:', error.message)
+    return []
+  }
+
+  return (data ?? []).map((row) => toForgeArchive(row as Record<string, unknown>))
+}
+
+export async function getForgeArchiveById(id: string): Promise<ForgeArchive | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('forge_archives')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) {
+    console.error('getForgeArchiveById:', error.message)
+    return null
+  }
+
+  return data ? toForgeArchive(data as Record<string, unknown>) : null
 }
 
 /** All pieces (admin). Ordered by sort_order. Live silver formula applied when spot is available. */

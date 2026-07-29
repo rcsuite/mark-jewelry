@@ -1,9 +1,10 @@
 import WorkbenchView from '@/components/workbench/WorkbenchView'
-import { getCurrentBuild } from '@/lib/queries'
+import { getCurrentBuild, getForgeArchives, isBuildActive } from '@/lib/queries'
 
 export default async function WorkbenchPage() {
-  const build = await getCurrentBuild()
-  const forgeActive = build?.status === 'active'
+  const [build, archives] = await Promise.all([getCurrentBuild(), getForgeArchives()])
 
-  return <WorkbenchView build={build} forgeActive={Boolean(forgeActive)} />
+  return (
+    <WorkbenchView build={build} forgeActive={isBuildActive(build)} archives={archives} />
+  )
 }

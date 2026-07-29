@@ -101,12 +101,24 @@ export default function CategoryEditor({ category: initial, pieces: initialPiece
     }
   }
 
-  const persistPieceOrder = (next: ShopPiece[]) => {
-    setPieces(next)
+  const available = pieces.filter((p) => !p.sold)
+  const sold = pieces.filter((p) => p.sold)
+
+  const persistAvailableOrder = (next: ShopPiece[]) => {
+    setPieces([...next, ...sold])
     startTransition(async () => {
       const result = await reorderPieces(next.map((p) => p.id))
       if (!result.ok) flash(result.error, true)
-      else flash('Piece order saved.')
+      else flash('Available order saved.')
+    })
+  }
+
+  const persistSoldOrder = (next: ShopPiece[]) => {
+    setPieces([...available, ...next])
+    startTransition(async () => {
+      const result = await reorderPieces(next.map((p) => p.id))
+      if (!result.ok) flash(result.error, true)
+      else flash('Sold order saved.')
     })
   }
 
@@ -150,7 +162,8 @@ export default function CategoryEditor({ category: initial, pieces: initialPiece
           </p>
           <h1 className="text-5xl display-font mb-2">{category.title}</h1>
           <p className="text-[#A1A1AA] text-sm">
-            Edit the cover photo visitors see on the homepage, then drag pieces to set their order.
+            Edit the cover photo visitors see on the homepage. Available pieces sit in the main
+            grid; sold pieces drop to a thumbnail strip below — same idea as the homepage.
           </p>
         </div>
 
@@ -220,25 +233,26 @@ export default function CategoryEditor({ category: initial, pieces: initialPiece
           </div>
         </div>
 
-        {/* Pieces grid */}
+        {/* Available pieces */}
         <div>
           <div className="flex items-end justify-between mb-8 border-b border-white/10 pb-4">
             <h2 className="text-3xl display-font">
-              All {category.short_name || category.title}
+              Available {category.short_name || category.title}
             </h2>
             <span className="text-[#71717A] text-xs font-bold tracking-widest uppercase">
-              {pieces.length} pieces · drag to reorder · pencil to edit
+              {available.length} for sale · drag to reorder · pencil to edit
             </span>
           </div>
 
-          {pieces.length === 0 ? (
+          {available.length === 0 ? (
             <p className="text-[#71717A] text-sm py-12 text-center border border-dashed border-[#27272A]">
-              No pieces in this category yet.
+              No available pieces in this category
+              {sold.length > 0 ? ' — sold ones are below.' : ' yet.'}
             </p>
           ) : (
             <SortableList
-              items={pieces}
-              onReorder={persistPieceOrder}
+              items={available}
+              onReorder={persistAvailableOrder}
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
               renderItem={(piece, { isDragging, dragHandleProps }) => (
                 <div
@@ -253,13 +267,9 @@ export default function CategoryEditor({ category: initial, pieces: initialPiece
                     href={`/admin/homepage/pieces/${piece.id}`}
                     label={`Edit ${piece.title}`}
                   />
-                  {piece.sold && (
-                    <span className="absolute top-3 left-3 z-20 bg-[#B59A54] text-black text-[9px] font-bold tracking-widest uppercase px-2 py-1">
-                      Sold
-                    </span>
-                  )}
                   <div className="aspect-[4/5] bg-[#111419] relative overflow-hidden flex items-center justify-center">
                     {piece.photos[0] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={piece.photos[0]}
                         alt={piece.title}
@@ -275,11 +285,7 @@ export default function CategoryEditor({ category: initial, pieces: initialPiece
                   <div className="p-4">
                     <h3 className="display-font text-lg">{piece.title}</h3>
                     <p className="text-[#B59A54] text-sm mt-1">
-                      {piece.sold
-                        ? 'Sold'
-                        : piece.inquire_for_price
-                          ? 'Inquire'
-                          : `$${piece.price.toFixed(2)}`}
+                      {piece.inquire_for_price ? 'Inquire' : `$${piece.price.toFixed(2)}`}
                     </p>
                   </div>
                 </div>
@@ -287,6 +293,59 @@ export default function CategoryEditor({ category: initial, pieces: initialPiece
             />
           )}
         </div>
+
+        {/* Sold strip — same idea as homepage */}
+        {sold.length > 0 && (
+          <div>
+            <div className="flex items-end justify-between mb-8 border-b border-white/10 pb-4">
+              <div>
+                <h2 className="text-3xl display-font">Sold in this category</h2>
+                <p className="text-[#71717A] text-sm mt-2">
+                  Drag thumbnails to reorder · pencil opens the piece editor
+                </p>
+              </div>
+              <span className="text-[#71717A] text-xs font-bold tracking-widest uppercase">
+                {sold.length} sold
+              </span>
+            </div>
+            <SortableList
+              items={sold}
+              onReorder={persistSoldOrder}
+              className="flex flex-wrap gap-4"
+              itemClassName="shrink-0"
+              renderItem={(piece, { isDragging, dragHandleProps }) => (
+                <div
+                  {...dragHandleProps}
+                  className={`relative w-28 h-28 bg-[#111419] border cursor-grab active:cursor-grabbing overflow-hidden ${
+                    isDragging
+                      ? 'border-[#00F2FE] opacity-60'
+                      : 'border-[#B59A54]/60 hover:border-[#B59A54]'
+                  }`}
+                >
+                  <PencilButton
+                    href={`/admin/homepage/pieces/${piece.id}`}
+                    label={`Edit ${piece.title}`}
+                  />
+                  {piece.photos[0] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={piece.photos[0]}
+                      alt={piece.title}
+                      className="w-full h-full object-cover pointer-events-none"
+                    />
+                  ) : (
+                    <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white/20 display-font pointer-events-none">
+                      SOLD
+                    </span>
+                  )}
+                  <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] text-center py-1 tracking-widest uppercase text-[#B59A54] pointer-events-none">
+                    Sold
+                  </span>
+                </div>
+              )}
+            />
+          </div>
+        )}
       </div>
 
       {imageSrc && (

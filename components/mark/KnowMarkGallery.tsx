@@ -3,6 +3,7 @@
 import type { MarkMoment } from '@/lib/types'
 import Link from 'next/link'
 import ContactTrigger from '@/components/chat/ContactTrigger'
+import SiteFooter from '@/components/SiteFooter'
 
 type Props = {
   moments: MarkMoment[]
@@ -51,7 +52,7 @@ export default function KnowMarkGallery({ moments, showContactCta = true }: Prop
           Off the bench
         </p>
         <h1 className="text-5xl md:text-6xl display-font text-white mb-6">
-          Know <span className="labradorite-teal">Mark</span>
+          Joeline <span className="labradorite-teal">&amp; Mark</span>
         </h1>
         <p className="text-lg text-[#A1A1AA] font-light leading-relaxed max-w-2xl mx-auto">
           The forge is only half the story. Out on the water, in the woods, with family — these are
@@ -63,7 +64,7 @@ export default function KnowMarkGallery({ moments, showContactCta = true }: Prop
         {moments.length === 0 ? (
           <div className="border border-[#27272A] bg-[#0A0C10] p-12 text-center">
             <p className="text-[#71717A] text-sm">
-              Photos from Mark’s life will show up here soon.
+              Photos from our life off the bench will show up here soon.
             </p>
           </div>
         ) : (
@@ -76,7 +77,7 @@ export default function KnowMarkGallery({ moments, showContactCta = true }: Prop
                 <div className="relative overflow-hidden bg-[#111419]">
                   <img
                     src={moment.image_url}
-                    alt={moment.caption || 'A moment with Mark'}
+                    alt={moment.caption || 'A moment with Joeline & Mark'}
                     className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-[1.02]"
                     loading={index < 2 ? 'eager' : 'lazy'}
                   />
@@ -94,20 +95,16 @@ export default function KnowMarkGallery({ moments, showContactCta = true }: Prop
         {showContactCta && (
           <div className="mt-20 text-center border-t border-white/5 pt-12">
             <p className="text-[#71717A] text-sm mb-6 max-w-md mx-auto">
-              Want to talk about a piece — or just say hello? I'll answer you myself.
+              Want to talk about a piece — or just say hello? We&apos;ll answer you ourselves.
             </p>
             <ContactTrigger className="inline-block bg-[#B59A54] text-black display-font tracking-[0.2em] px-10 py-4 hover:bg-white transition-colors">
-              Contact Mark
+              Contact us
             </ContactTrigger>
           </div>
         )}
       </main>
 
-      <footer className="relative z-10 py-10 border-t border-white/5 text-center">
-        <div className="text-sm tracking-[0.2em] uppercase font-bold text-white/30">
-          EARTHEN MINERS <span className="labradorite-teal">DESIGNS</span>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

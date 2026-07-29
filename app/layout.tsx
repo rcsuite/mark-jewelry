@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Earthen Miners Designs",
   description:
-    "One-artisan forged silver and stone jewelry. Follow the live build, then shop The Vault.",
+    "Hand-forged silver and stone jewelry by Joeline & Mark. Follow the live build, then shop The Vault.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [

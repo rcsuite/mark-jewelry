@@ -72,12 +72,12 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
         return
       }
       if (result.data?.mode === 'email_only') {
-        setStatus('Message sent to Mark. He’ll reply by email.')
+        setStatus('Message sent. We’ll reply by email.')
         setMessage('')
         return
       }
       setOpenWidget(true)
-      setStatus('Live chat unlocked — ask Mark anything below.')
+      setStatus('Live chat unlocked — ask us anything below.')
       router.refresh()
     })
   }
@@ -85,7 +85,7 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
   const buttonLabel = (() => {
     if (pending) return 'Connecting…'
     if (path === 'continue') return 'Open my chat'
-    if (path === 'email') return 'Send to Mark'
+    if (path === 'email') return 'Send to us'
     return 'Start live chat'
   })()
 
@@ -112,14 +112,14 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
         >
           ← Home
         </Link>
-        <h1 className="display-font text-4xl mt-6 mb-2">Contact Mark</h1>
+        <h1 className="display-font text-4xl mt-6 mb-2">Contact us</h1>
         <p className="text-[#A1A1AA] text-sm mb-8">
           Reach the forge directly. Live chat stays on this site; or send a one-shot email.
         </p>
         <p className="text-sm text-[#71717A] mb-8">
           New here?{' '}
           <Link href="/mark" className="text-[#14B8A6] hover:text-white">
-            Get to know Mark
+            Meet Joeline &amp; Mark
           </Link>{' '}
           — fishing, family, life off the bench.
         </p>
@@ -159,7 +159,7 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
               onClick={() => selectPath('email')}
               className={tabClass(path === 'email')}
             >
-              Email Mark
+              Email us
             </button>
           </div>
 
@@ -185,7 +185,7 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
               placeholder="you@example.com"
             />
             <span className="block text-[11px] text-[#A1A1AA] mt-2">
-              Same email always reopens your conversation with Mark — no password.
+              Same email always reopens your conversation with us — no password.
             </span>
           </label>
 
@@ -199,7 +199,7 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 className={`${fieldClass} resize-none`}
-                placeholder="What do you want to ask Mark?"
+                placeholder="What do you want to ask us?"
               />
             </label>
           )}
@@ -214,7 +214,7 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 className={`${fieldClass} resize-none`}
-                placeholder="What should Mark know?"
+                placeholder="What should we know?"
               />
             </label>
           )}

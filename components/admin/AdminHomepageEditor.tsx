@@ -21,7 +21,7 @@ import ReviewCard from '@/components/home/ReviewCard'
 import { createClient } from '@/lib/supabase/client'
 import { getCroppedImageBlob } from '@/lib/crop-image'
 import { CROP_ASPECT_OPTIONS } from '@/lib/crop-aspect'
-import { FORGE_IMAGES_BUCKET, uploadImageBlob } from '@/lib/upload-image'
+import { FORGE_IMAGES_BUCKET, REVIEW_PHOTOS_BUCKET, uploadImageBlob } from '@/lib/upload-image'
 import { CATEGORY_GRID_CLASS, categoryItemWidthClass } from '@/lib/category-layout'
 import { resolveHeroBannerUrl } from '@/lib/hero'
 import type { Category, CurrentBuild, HeroSlide, Review, ShopPiece, SiteSettings } from '@/lib/types'
@@ -73,6 +73,7 @@ export default function AdminHomepageEditor({
     author: '',
     location: '',
     rating: 5,
+    image_url: null as string | null,
   })
   const [addingCategory, setAddingCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
@@ -84,6 +85,12 @@ export default function AdminHomepageEditor({
   const [aspect, setAspect] = useState<number | undefined>(16 / 10)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [uploading, setUploading] = useState(false)
+
+  const [reviewImageSrc, setReviewImageSrc] = useState<string | null>(null)
+  const [reviewCrop, setReviewCrop] = useState({ x: 0, y: 0 })
+  const [reviewZoom, setReviewZoom] = useState(1)
+  const [reviewCroppedArea, setReviewCroppedArea] = useState<Area | null>(null)
+  const [reviewUploading, setReviewUploading] = useState(false)
 
   useEffect(() => {
     const saved = searchParams.get('saved')
@@ -192,20 +199,61 @@ export default function AdminHomepageEditor({
       author: review.author,
       location: review.location,
       rating: review.rating,
+      image_url: review.image_url,
     })
   }
 
   const openReviewAdd = () => {
     setAddingReview(true)
     setEditingReview(null)
-    setReviewDraft({ quote: '', author: '', location: '', rating: 5 })
+    setReviewDraft({ quote: '', author: '', location: '', rating: 5, image_url: null })
+  }
+
+  const onReviewFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setReviewCrop({ x: 0, y: 0 })
+    setReviewZoom(1)
+    setReviewCroppedArea(null)
+    setReviewImageSrc(URL.createObjectURL(file))
+    e.target.value = ''
+  }
+
+  const uploadReviewPhoto = async () => {
+    if (!reviewImageSrc || !reviewCroppedArea) {
+      flash('Adjust the crop first.', true)
+      return
+    }
+    setReviewUploading(true)
+    try {
+      const blob = await getCroppedImageBlob(reviewImageSrc, reviewCroppedArea)
+      const url = await uploadImageBlob(
+        supabase,
+        REVIEW_PHOTOS_BUCKET,
+        'admin',
+        blob,
+        `review-${Date.now()}`
+      )
+      setReviewDraft((prev) => ({ ...prev, image_url: url }))
+      URL.revokeObjectURL(reviewImageSrc)
+      setReviewImageSrc(null)
+      flash('Review photo uploaded — hit Save to keep it.')
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Upload failed.', true)
+    } finally {
+      setReviewUploading(false)
+    }
   }
 
   const saveReview = () => {
     startTransition(async () => {
       const result = await upsertReview({
         id: editingReview?.id,
-        ...reviewDraft,
+        quote: reviewDraft.quote,
+        author: reviewDraft.author,
+        location: reviewDraft.location,
+        rating: reviewDraft.rating,
+        image_url: reviewDraft.image_url,
       })
       if (!result.ok) {
         flash(result.error, true)
@@ -370,7 +418,7 @@ export default function AdminHomepageEditor({
             href="/admin/mark"
             className="text-[10px] font-bold tracking-widest uppercase border border-black/30 px-4 py-2 hover:bg-black hover:text-[#14B8A6]"
           >
-           Edit → Know Mark 
+           Edit → Joeline &amp; Mark
           </Link>
           <Link
             href="/admin/add-piece"
@@ -393,7 +441,7 @@ export default function AdminHomepageEditor({
         </div>
       )}
 
-      {/* Hero — mirrors public `/`, pencil edits the banner image */}
+      {/* Hero — same `current_build.hero_image` as /admin/current-project */}
       <header className="relative w-full border-b border-white/5">
         <div className="max-w-7xl mx-auto grid md:grid-cols-5 gap-0 items-stretch">
           <div className="relative md:col-span-3 aspect-[16/10] md:aspect-auto md:min-h-[400px] border-r border-white/5 bg-[#0A0C10] overflow-hidden group">
@@ -427,7 +475,7 @@ export default function AdminHomepageEditor({
             </div>
             <PencilButton
               onClick={() => document.getElementById('admin-hero-banner-input')?.click()}
-              label="Change hero banner"
+              label="Change homepage hero banner"
             />
             <input
               id="admin-hero-banner-input"
@@ -436,9 +484,16 @@ export default function AdminHomepageEditor({
               className="hidden"
               onChange={onBannerFile}
             />
-            <p className="absolute top-3 left-3 z-20 text-[9px] font-bold tracking-widest uppercase bg-black/80 border border-[#27272A] text-[#A1A1AA] px-2 py-1">
-              Hero banner
-            </p>
+            <div className="absolute top-3 left-3 z-20 flex flex-col gap-1.5 items-start">
+              <p className="text-[9px] font-bold tracking-widest uppercase bg-black/80 border border-[#B59A54]/50 text-[#B59A54] px-2 py-1">
+                Homepage hero · slide 1
+              </p>
+              {forgeActive && slideIndex > 0 && (
+                <p className="text-[9px] font-bold tracking-widest uppercase bg-black/80 border border-[#27272A] text-[#A1A1AA] px-2 py-1">
+                  Progress photo · from Current Build timeline
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="md:col-span-2 p-8 md:p-12 flex flex-col justify-center">
@@ -448,18 +503,23 @@ export default function AdminHomepageEditor({
             <h1 className="text-5xl md:text-6xl font-bold leading-[0.9] mb-6 text-white display-font tracking-tight">
               Follow <br /> The <span className="labradorite-flash">Build.</span>
             </h1>
-            <div className="border-l-2 border-[#14B8A6] pl-6 py-1 mb-8">
+            <div className="border-l-2 border-[#14B8A6] pl-6 py-1 mb-6">
               <p className="text-base md:text-lg text-[#A1A1AA] font-light leading-relaxed">
                 {forgeActive
                   ? `On the bench: ${build?.description || 'a new custom piece is underway.'}`
-                  : 'Forge resting — pencil the hero image, or open Current Build to ignite the next piece.'}
+                  : 'Forge resting — pencil the hero banner, or open Current Build to ignite the next piece.'}
               </p>
             </div>
+            <p className="text-[11px] text-[#71717A] leading-relaxed mb-8">
+              Pencil changes the <span className="text-[#B59A54]">homepage hero banner</span>.
+              Same control lives in a dedicated panel on Current Build. Timeline photos scroll
+              after it when the forge is active.
+            </p>
             <Link
               href="/admin/current-project"
               className="w-fit border border-[#B59A54] text-[#B59A54] display-font tracking-widest text-sm px-6 py-3 hover:bg-[#B59A54] hover:text-black"
             >
-              Edit live forge →
+              Edit hero & live forge →
             </Link>
           </div>
         </div>
@@ -885,6 +945,43 @@ export default function AdminHomepageEditor({
                   className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none"
                 />
               </label>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-[#71717A] font-bold mb-3">
+                  Corner photo (bottom-right of the card)
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="text-[10px] font-bold uppercase tracking-widest border border-[#27272A] px-4 py-3 cursor-pointer hover:border-[#14B8A6] text-[#A1A1AA]">
+                    {reviewDraft.image_url ? 'Replace photo' : 'Upload photo'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      onChange={onReviewFile}
+                    />
+                  </label>
+                  {reviewDraft.image_url && (
+                    <button
+                      type="button"
+                      onClick={() => setReviewDraft({ ...reviewDraft, image_url: null })}
+                      className="text-[10px] uppercase tracking-widest text-[#71717A] hover:text-white font-bold"
+                    >
+                      Clear photo
+                    </button>
+                  )}
+                  {reviewDraft.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={reviewDraft.image_url}
+                      alt=""
+                      className="w-14 h-14 rounded-full object-cover border-2 border-[#05070A]"
+                    />
+                  ) : (
+                    <span className="text-[10px] text-[#52525B]">
+                      Initials show if no photo
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="flex flex-wrap gap-3 mt-8">
               <button
@@ -914,6 +1011,55 @@ export default function AdminHomepageEditor({
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review photo crop */}
+      {reviewImageSrc && (
+        <div className="fixed inset-0 bg-black/90 z-[80] flex flex-col items-center justify-center p-6">
+          <p className="text-[10px] font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
+            Crop review photo · square for the corner circle
+          </p>
+          <div className="relative w-full max-w-2xl h-[50vh] bg-[#0A0C10] border border-[#27272A] mb-4 overflow-hidden">
+            <Cropper
+              image={reviewImageSrc}
+              crop={reviewCrop}
+              zoom={reviewZoom}
+              aspect={1}
+              onCropChange={setReviewCrop}
+              onZoomChange={setReviewZoom}
+              onCropComplete={(_, area) => setReviewCroppedArea(area)}
+            />
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={3}
+            step={0.05}
+            value={reviewZoom}
+            onChange={(e) => setReviewZoom(Number(e.target.value))}
+            className="w-64 mb-4"
+          />
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={uploadReviewPhoto}
+              disabled={reviewUploading || !reviewCroppedArea}
+              className="px-6 py-3 bg-[#14B8A6] text-black text-[10px] font-bold tracking-widest uppercase disabled:opacity-50"
+            >
+              {reviewUploading ? 'Uploading…' : 'Use photo'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                URL.revokeObjectURL(reviewImageSrc)
+                setReviewImageSrc(null)
+              }}
+              className="px-6 py-3 border border-[#27272A] text-[10px] font-bold tracking-widest uppercase text-[#A1A1AA]"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

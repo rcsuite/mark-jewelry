@@ -149,8 +149,8 @@ async function sendReviewEmail(input: {
 
   const link = reviewInviteUrl(input.token)
   const greet = input.buyerName.trim() || 'there'
-  const text = `Hi ${greet},\n\nMark at Earthen Miners Designs would love to hear how ${input.pieceTitle} is treating you.\n\nLeave a short review here (takes a minute):\n${link}\n\nThank you,\nEarthen Miners Designs`
-  const html = `<p>Hi ${escapeHtml(greet)},</p><p>Mark at <strong>Earthen Miners Designs</strong> would love to hear how <strong>${escapeHtml(input.pieceTitle)}</strong> is treating you.</p><p><a href="${escapeHtml(link)}" style="display:inline-block;margin:16px 0;padding:12px 20px;background:#14B8A6;color:#05070A;text-decoration:none;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;font-size:12px;">Leave a review</a></p><p style="color:#71717A;font-size:13px;">Or open this link:<br/><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p><p>Thank you,<br/>Earthen Miners Designs</p>`
+  const text = `Hi ${greet},\n\nJoeline & Mark at Earthen Miners Designs would love to hear how ${input.pieceTitle} is treating you.\n\nLeave a short review here (takes a minute):\n${link}\n\nThank you,\nEarthen Miners Designs`
+  const html = `<p>Hi ${escapeHtml(greet)},</p><p>Joeline &amp; Mark at <strong>Earthen Miners Designs</strong> would love to hear how <strong>${escapeHtml(input.pieceTitle)}</strong> is treating you.</p><p><a href="${escapeHtml(link)}" style="display:inline-block;margin:16px 0;padding:12px 20px;background:#14B8A6;color:#05070A;text-decoration:none;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;font-size:12px;">Leave a review</a></p><p style="color:#71717A;font-size:13px;">Or open this link:<br/><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p><p>Thank you,<br/>Earthen Miners Designs</p>`
 
   try {
     const res = await fetch('https://api.resend.com/emails', {

@@ -105,7 +105,7 @@ export default function AdminKnowMarkEditor({ moments: initial }: Props) {
   }
 
   const remove = (id: string) => {
-    if (!confirm('Remove this photo from Know Mark?')) return
+    if (!confirm('Remove this photo from Joeline & Mark?')) return
     startTransition(async () => {
       const result = await deleteMarkMoment(id)
       if (!result.ok) {
@@ -173,7 +173,7 @@ export default function AdminKnowMarkEditor({ moments: initial }: Props) {
       <div className="sticky top-[3.25rem] z-[60] bg-[#14B8A6]/10 border-b border-[#14B8A6]/40 backdrop-blur-sm">
         <div className="max-w-5xl mx-auto px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
           <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
-            Editing Know Mark — drag to reorder · pencil to edit
+            Editing Joeline &amp; Mark — drag to reorder · pencil to edit
           </p>
           <Link
             href="/mark"
@@ -191,7 +191,7 @@ export default function AdminKnowMarkEditor({ moments: initial }: Props) {
         >
           ← Control panel
         </Link>
-        <h1 className="display-font text-4xl mt-4 mb-2">Know Mark</h1>
+        <h1 className="display-font text-4xl mt-4 mb-2">Joeline &amp; Mark</h1>
         <p className="text-[#A1A1AA] text-sm mb-8 max-w-xl">
           Fishing trips, big catches, life off the bench — upload photos and short captions.
           Same layout visitors see on <span className="text-white">/mark</span>.

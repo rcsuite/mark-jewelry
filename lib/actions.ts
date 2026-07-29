@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { slugify } from '@/lib/categories'
-import { toCategory, toReview, toMarkMoment, normalizePiece } from '@/lib/queries'
+import { toCategory, toReview, toMarkMoment, normalizePiece, toPartner } from '@/lib/queries'
 import { assertPersistentImageUrls } from '@/lib/auth-session'
 import {
   computePriceBreakdown,
@@ -12,7 +12,7 @@ import {
   withLivePrice,
 } from '@/lib/pricing'
 import { getSilverSpotPerOz } from '@/lib/silver'
-import type { Category, MarkMoment, Review, ShopPiece, SiteSettings } from '@/lib/types'
+import type { Category, MarkMoment, Partner, Review, ShopPiece, SiteSettings, VideoSession } from '@/lib/types'
 import { DEFAULT_SITE_SETTINGS } from '@/lib/queries'
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string }
@@ -31,6 +31,7 @@ function revalidateStorefront() {
   revalidatePath('/shop')
   revalidatePath('/mark')
   revalidatePath('/contact')
+  revalidatePath('/workbench')
   revalidatePath('/admin')
   revalidatePath('/admin/homepage')
   revalidatePath('/admin/mark')
@@ -228,6 +229,8 @@ export type PieceUpdateInput = {
   photos?: string[]
   sold?: boolean
   featured?: boolean
+  made_by?: 'mark' | 'joeline'
+  partner_id?: string | null
 }
 
 export async function updatePiece(input: PieceUpdateInput): Promise<ActionResult<ShopPiece>> {
@@ -286,6 +289,12 @@ export async function updatePiece(input: PieceUpdateInput): Promise<ActionResult
   if (input.workmanship_cost !== undefined) patch.workmanship_cost = input.workmanship_cost
   if (input.silver_grams !== undefined) patch.silver_grams = input.silver_grams
   if (input.inquire_for_price !== undefined) patch.inquire_for_price = input.inquire_for_price
+  if (input.made_by !== undefined) {
+    patch.made_by = input.made_by === 'joeline' ? 'joeline' : 'mark'
+  }
+  if (input.partner_id !== undefined) {
+    patch.partner_id = input.partner_id?.trim() || null
+  }
 
   const spot = await getSilverSpotPerOz()
   const pricingTouched =
@@ -731,4 +740,165 @@ export async function deleteMarkMoment(id: string): Promise<ActionResult> {
 
   revalidateStorefront()
   return { ok: true }
+}
+
+export type FinalizeBuildInput = {
+  buildId: string
+  title: string
+  category: string
+  pieceType: string
+  price: number
+  photos: string[]
+  description: string
+  tags: string[]
+  weight: string
+  size: string
+  material: string
+  progressImages: string[]
+  videoArchive: VideoSession[]
+  made_by: 'mark' | 'joeline'
+}
+
+/** List the current build to the shop, snapshot forge history, clear the live workbench. */
+export async function finalizeCurrentBuild(
+  input: FinalizeBuildInput
+): Promise<ActionResult<{ shopPieceId: string; archiveId: string }>> {
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: 'Unauthorized.' }
+
+  const title = input.title.trim()
+  const category = input.category.trim()
+  const photos = input.photos.filter((p) => p.trim() !== '')
+  const progressImages = input.progressImages.filter((p) => p.trim() !== '')
+
+  if (!input.buildId) return { ok: false, error: 'No current_build row found to finalize.' }
+  if (!title || !category || !Number.isFinite(input.price)) {
+    return { ok: false, error: 'Title, category, and price are required to finalize.' }
+  }
+  if (photos.length === 0) {
+    return { ok: false, error: 'Add at least one progress image before finalizing.' }
+  }
+
+  try {
+    assertPersistentImageUrls(photos)
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Invalid photo URLs.' }
+  }
+
+  const pieceType = input.pieceType.trim() || 'Ring'
+  const made_by = input.made_by === 'joeline' ? 'joeline' : 'mark'
+
+  const { data: shopPiece, error: shopError } = await supabase
+    .from('shop_inventory')
+    .insert({
+      title,
+      category,
+      categories: [category],
+      piece_type: pieceType,
+      price: input.price,
+      photos,
+      description: input.description || null,
+      tags: input.tags,
+      made_by,
+      specs: {
+        weight: input.weight,
+        size: input.size,
+        material: input.material,
+      },
+    })
+    .select('id')
+    .single()
+
+  if (shopError || !shopPiece?.id) {
+    return { ok: false, error: 'Error creating shop listing: ' + (shopError?.message ?? 'unknown') }
+  }
+
+  const { data: maxRow } = await supabase
+    .from('forge_archives')
+    .select('sort_order')
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { data: archive, error: archiveError } = await supabase
+    .from('forge_archives')
+    .insert({
+      shop_piece_id: shopPiece.id,
+      title,
+      thumbnail_url: photos[0],
+      description: input.description || null,
+      progress_images: progressImages.length > 0 ? progressImages : photos,
+      video_archive: input.videoArchive ?? [],
+      sort_order: Number(maxRow?.sort_order ?? 0) + 10,
+    })
+    .select('id')
+    .single()
+
+  if (archiveError || !archive?.id) {
+    return {
+      ok: false,
+      error:
+        'Piece was listed, but saving the forge archive failed: ' +
+        (archiveError?.message ?? 'unknown'),
+    }
+  }
+
+  const { error: clearError } = await supabase
+    .from('current_build')
+    .update({
+      status: 'complete',
+      progress_images: [],
+      video_archive: [],
+      description: '',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', input.buildId)
+
+  if (clearError) {
+    return {
+      ok: false,
+      error: 'Piece was listed, but clearing the workbench failed: ' + clearError.message,
+    }
+  }
+
+  revalidateStorefront()
+  revalidatePath(`/workbench/${archive.id}`)
+  revalidatePath(`/shop/${shopPiece.id}`)
+
+  return {
+    ok: true,
+    data: { shopPieceId: shopPiece.id, archiveId: archive.id },
+  }
+}
+
+export async function createPartner(input: {
+  credit_label: string
+  name: string
+  url?: string | null
+}): Promise<ActionResult<Partner>> {
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: 'Unauthorized.' }
+
+  const credit_label = input.credit_label.trim()
+  const name = input.name.trim()
+  const url = input.url?.trim() || null
+
+  if (!credit_label) return { ok: false, error: 'Credit label is required (e.g. Stones Cut By).' }
+  if (!name) return { ok: false, error: 'Partner name is required.' }
+
+  if (url && !/^https?:\/\//i.test(url)) {
+    return { ok: false, error: 'Link must start with http:// or https://' }
+  }
+
+  const { data, error } = await supabase
+    .from('partners')
+    .insert({ credit_label, name, url })
+    .select('*')
+    .single()
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/admin')
+  revalidateStorefront()
+  return { ok: true, data: toPartner(data as Record<string, unknown>) }
 }

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import ContactTrigger from '@/components/chat/ContactTrigger'
+import MediaReveal from '@/components/ui/MediaReveal'
+import SiteFooter from '@/components/SiteFooter'
 import type { Category, ShopPiece } from '@/lib/types'
 import {
   EMPTY_SHOP_FILTERS,
@@ -146,7 +148,7 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
             href="/mark"
             className="text-xs tracking-[0.2em] uppercase font-bold text-[#71717A] hover:text-[#14B8A6] transition-colors hidden sm:inline"
           >
-            Know Mark
+            Joeline &amp; Mark
           </Link>
           <Link
             href="/workbench"
@@ -286,13 +288,9 @@ export default function ShopGallery({ items, categories }: ShopGalleryProps) {
         )}
       </main>
 
-      <footer className="py-12 border-t border-white/5 bg-[#05070A] relative z-10 text-center mt-24">
-        <div className="text-sm tracking-[0.2em] uppercase font-bold text-white/30">
-          EARTHEN MINERS <span className="labradorite-teal">DESIGNS</span> &copy;{' '}
-          {new Date().getFullYear()}
-        </div>
+      <SiteFooter className="mt-24">
         <p className="text-xs text-white/10 mt-2">Unapologetic Craft. No Molds. No Fluff.</p>
-      </footer>
+      </SiteFooter>
 
       {overlayOpen && (
         <div
@@ -466,33 +464,31 @@ function VaultCard({ item }: { item: ShopPiece }) {
         item.sold ? 'opacity-90' : ''
       }`}
     >
-      <Link
-        href={`/shop/${item.id}`}
-        className="aspect-[4/5] bg-[#111419] relative overflow-hidden flex items-center justify-center border-b border-white/5"
-      >
-        {item.photos[0] ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={item.photos[0]}
-            alt={item.title}
-            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${
-              item.sold
-                ? 'grayscale opacity-70 group-hover:opacity-90'
-                : 'grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-105'
-            }`}
-          />
-        ) : (
-          <span className="text-xs text-white/20 display-font">[No Photo]</span>
-        )}
-        <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-sm border border-white/10 px-3 py-1">
-          <span
-            className={`text-[10px] font-bold tracking-widest uppercase ${
-              item.sold ? 'text-[#B59A54]' : 'text-[#14B8A6]'
-            }`}
-          >
-            {item.sold ? 'Sold' : item.piece_type}
-          </span>
-        </div>
+      <Link href={`/shop/${item.id}`} className="block border-b border-white/5">
+        <MediaReveal
+          variant={item.sold ? 'sold' : 'default'}
+          className="aspect-[4/5] bg-[#111419] flex items-center justify-center"
+        >
+          {item.photos[0] ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={item.photos[0]}
+              alt={item.title}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-xs text-white/20 display-font relative z-[2]">[No Photo]</span>
+          )}
+          <div className="absolute top-4 left-4 z-[2] bg-black/80 backdrop-blur-sm border border-white/10 px-3 py-1">
+            <span
+              className={`text-[10px] font-bold tracking-widest uppercase ${
+                item.sold ? 'text-[#B59A54]' : 'text-[#14B8A6]'
+              }`}
+            >
+              {item.sold ? 'Sold' : item.piece_type}
+            </span>
+          </div>
+        </MediaReveal>
       </Link>
 
       <div className="p-6 flex flex-col flex-grow">

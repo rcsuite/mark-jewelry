@@ -96,7 +96,7 @@ export default function ContactModal({
   const buttonLabel = (() => {
     if (pending) return 'Connecting…'
     if (path === 'continue') return 'Open my chat'
-    if (path === 'email') return 'Send to Mark'
+    if (path === 'email') return 'Send to us'
     return 'Start live chat'
   })()
 
@@ -124,7 +124,7 @@ export default function ContactModal({
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 id="contact-modal-title" className="display-font text-2xl text-white">
-                Contact Mark
+                Contact us
               </h2>
             </div>
             <button
@@ -165,7 +165,7 @@ export default function ContactModal({
               onClick={() => selectPath('email')}
               className={tabClass(path === 'email')}
             >
-              Email Mark
+              Email us
             </button>
           </div>
 
@@ -198,7 +198,7 @@ export default function ContactModal({
               placeholder="you@example.com"
             />
             <span className="block text-[11px] text-[#A1A1AA] mt-2">
-              Same email always reopens your conversation with Mark — no password.
+              Same email always reopens your conversation with us — no password.
             </span>
           </label>
 
@@ -226,7 +226,7 @@ export default function ContactModal({
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 className={`${fieldClass} resize-none`}
-                placeholder="What should Mark know?"
+                placeholder="What should we know?"
               />
             </label>
           )}
@@ -249,7 +249,7 @@ export default function ContactModal({
           <p className="text-center text-[11px] text-[#52525B]">
             Prefer the full story?{' '}
             <Link href="/mark" className="text-[#14B8A6] hover:text-white" onClick={onClose}>
-              Know Mark
+              Joeline &amp; Mark
             </Link>
           </p>
         </div>

@@ -1,9 +1,15 @@
 import AddPieceForm from '@/components/admin/AddPieceForm'
-import { getCategories } from '@/lib/queries'
+import { getCategories, getPartners } from '@/lib/queries'
 import { getSilverSpotPerOz } from '@/lib/silver'
 
 export default async function AddPiecePage() {
-  const [categories, spotPerOz] = await Promise.all([getCategories(), getSilverSpotPerOz()])
+  const [categories, partners, spotPerOz] = await Promise.all([
+    getCategories(),
+    getPartners(),
+    getSilverSpotPerOz(),
+  ])
 
-  return <AddPieceForm categories={categories} spotPerOz={spotPerOz} />
+  return (
+    <AddPieceForm categories={categories} partners={partners} spotPerOz={spotPerOz} />
+  )
 }

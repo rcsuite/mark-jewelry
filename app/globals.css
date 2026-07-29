@@ -24,3 +24,138 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * MEDIA REVEAL — dial these in
+ * Soft rest look → full vibrancy on hover (desktop) or when ~40% on-screen
+ * (phone/tablet only — desktop never uses in-view lighting). Used by homepage
+ * handiworks/sold + /shop vault cards.
+ *
+ * Knob guide (rest state only; lit clears most of this):
+ *   --mr-sat        1 = full color, 0 = grayscale. Lower = quieter at rest.
+ *   --mr-bright     1 = normal, <1 = dimmer at rest.
+ *   --mr-contrast   1 = normal. Slightly under 1 softens punch at rest.
+ *   --mr-mask       0–1 overlay strength (dark veil). Higher = more muted.
+ *   --mr-shadow-*   edge shadow at rest vs lifted when lit.
+ *   --mr-ms         transition speed in ms.
+ *
+ * Sold variant uses the --mr-sold-* twins (a bit quieter even when lit).
+ * Component: components/ui/MediaReveal.tsx (in-view threshold lives there).
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+.media-reveal {
+  /* ── AVAILABLE pieces: rest ─────────────────────────────────────────── */
+  --mr-sat: 0.55; /* try 0.45–0.70 */
+  --mr-bright: 0.86; /* try 0.80–0.92 */
+  --mr-contrast: 0.94; /* try 0.90–1 */
+  --mr-mask: 0.28; /* try 0.15–0.40 */
+
+  /* ── AVAILABLE pieces: lit (hover / on-screen) ──────────────────────── */
+  --mr-sat-lit: 1;
+  --mr-bright-lit: 1;
+  --mr-contrast-lit: 1;
+  --mr-mask-lit: 0;
+
+  /* ── SOLD pieces: rest (quieter than available) ─────────────────────── */
+  --mr-sold-sat: 0.4;
+  --mr-sold-bright: 0.8;
+  --mr-sold-contrast: 0.92;
+  --mr-sold-mask: 0.38;
+
+  /* ── SOLD pieces: lit (still a hair muted so “sold” reads) ──────────── */
+  --mr-sold-sat-lit: 0.88;
+  --mr-sold-bright-lit: 0.94;
+  --mr-sold-contrast-lit: 0.98;
+  --mr-sold-mask-lit: 0.08;
+
+  /* ── Shadows + timing ───────────────────────────────────────────────── */
+  --mr-shadow-rest: 0 1px 3px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --mr-shadow-lit: 0 12px 32px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  --mr-ms: 450ms;
+
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--mr-shadow-rest);
+  transition: box-shadow var(--mr-ms) ease;
+}
+
+.media-reveal > img,
+.media-reveal > .media-reveal-img {
+  filter: saturate(var(--mr-sat)) brightness(var(--mr-bright))
+    contrast(var(--mr-contrast));
+  transition: filter var(--mr-ms) ease;
+  will-change: filter;
+}
+
+.media-reveal-mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    160deg,
+    rgba(5, 7, 10, 0.55) 0%,
+    rgba(5, 7, 10, 0.2) 45%,
+    rgba(5, 7, 10, 0.65) 100%
+  );
+  opacity: var(--mr-mask);
+  transition: opacity var(--mr-ms) ease;
+}
+
+.media-reveal--sold > img,
+.media-reveal--sold > .media-reveal-img {
+  filter: saturate(var(--mr-sold-sat)) brightness(var(--mr-sold-bright))
+    contrast(var(--mr-sold-contrast));
+}
+
+.media-reveal--sold .media-reveal-mask {
+  opacity: var(--mr-sold-mask);
+  background: linear-gradient(
+    160deg,
+    rgba(5, 7, 10, 0.65) 0%,
+    rgba(11, 10, 8, 0.3) 50%,
+    rgba(5, 7, 10, 0.72) 100%
+  );
+}
+
+.media-reveal.is-lit,
+.group:hover .media-reveal {
+  box-shadow: var(--mr-shadow-lit);
+}
+
+.media-reveal.is-lit > img,
+.media-reveal.is-lit > .media-reveal-img,
+.group:hover .media-reveal > img,
+.group:hover .media-reveal > .media-reveal-img {
+  filter: saturate(var(--mr-sat-lit)) brightness(var(--mr-bright-lit))
+    contrast(var(--mr-contrast-lit));
+}
+
+.media-reveal.is-lit .media-reveal-mask,
+.group:hover .media-reveal .media-reveal-mask {
+  opacity: var(--mr-mask-lit);
+}
+
+.media-reveal--sold.is-lit > img,
+.media-reveal--sold.is-lit > .media-reveal-img,
+.group:hover .media-reveal--sold > img,
+.group:hover .media-reveal--sold > .media-reveal-img {
+  filter: saturate(var(--mr-sold-sat-lit)) brightness(var(--mr-sold-bright-lit))
+    contrast(var(--mr-sold-contrast-lit));
+}
+
+.media-reveal--sold.is-lit .media-reveal-mask,
+.group:hover .media-reveal--sold .media-reveal-mask {
+  opacity: var(--mr-sold-mask-lit);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .media-reveal,
+  .media-reveal > img,
+  .media-reveal > .media-reveal-img,
+  .media-reveal-mask {
+    transition: none;
+  }
+}

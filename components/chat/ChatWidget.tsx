@@ -16,7 +16,7 @@ type Props = {
 }
 
 const AWAY_COPY =
-  "I'm away from my bench right now so your message will notify my phone. I'll chat with you soon!"
+  "We're away from the bench right now so your message will notify our phones. We'll chat with you soon!"
 
 export default function ChatWidget({ initiallyOpen = false }: Props) {
   const [open, setOpen] = useState(initiallyOpen)
@@ -131,7 +131,7 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
         <div className="w-[min(100vw-2rem,22rem)] h-[28rem] bg-[#0A0C10] border border-[#27272A] shadow-2xl flex flex-col overflow-hidden">
           <div className="px-4 py-3 border-b border-[#27272A] flex items-start justify-between gap-2 bg-[#05070A]">
             <div>
-              <p className="display-font text-sm text-white">Ask Mark a question</p>
+              <p className="display-font text-sm text-white">Ask us a question</p>
               <p className="text-[10px] text-[#71717A] uppercase tracking-widest mt-0.5">
                 {visitorName}
                 {pieceTitle ? ` · ${pieceTitle}` : ''}
@@ -156,8 +156,8 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {emptyPromptShown && (
               <p className="text-sm text-[#A1A1AA] leading-relaxed">
-                What do you want to ask Mark? Hit enter to send — if he’s away from the bench,
-                your message will notify his phone after a couple minutes.
+                What do you want to ask us? Hit enter to send — if we&apos;re away from the bench,
+                your message will notify our phones after a couple minutes.
               </p>
             )}
             {messages.map((m) => (
@@ -189,7 +189,7 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
               ) : (
                 <p className="text-xs text-[#14B8A6] font-medium truncate">@{aboutPiece}</p>
               )}
-              <p className="text-[11px] text-[#71717A]">What do you want to ask Mark?</p>
+              <p className="text-[11px] text-[#71717A]">What do you want to ask us?</p>
             </div>
           )}
 

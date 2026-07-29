@@ -14,19 +14,35 @@ import { parseMoneyInput } from '@/lib/pricing'
 import PiecePricingFields, {
   type PricingFormState,
 } from '@/components/admin/PiecePricingFields'
-import type { Category, ShopPiece } from '@/lib/types'
+import {
+  photoSlotsFromUrls,
+  SortableList,
+  urlsFromPhotoSlots,
+  type PhotoSlot,
+} from '@/components/admin/SortableList'
+import PartnershipModal from '@/components/admin/PartnershipModal'
+import { PIECE_MAKERS, type PieceMaker } from '@/lib/makers'
+import type { Category, Partner, ShopPiece } from '@/lib/types'
 
 const supabase = createClient()
 
 type Props = {
   piece: ShopPiece
   categories: Category[]
+  partners: Partner[]
   spotPerOz: number | null
 }
 
-export default function PieceEditor({ piece: initial, categories, spotPerOz }: Props) {
+export default function PieceEditor({
+  piece: initial,
+  categories,
+  partners: initialPartners,
+  spotPerOz,
+}: Props) {
   const router = useRouter()
   const piece = initial
+  const [partners, setPartners] = useState(initialPartners)
+  const [partnerModalOpen, setPartnerModalOpen] = useState(false)
   const [form, setForm] = useState({
     title: initial.title,
     selectedCategories: initial.categories?.length
@@ -46,7 +62,11 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
     buyer_name: initial.buyer_name ?? '',
     buyer_email: initial.buyer_email ?? '',
     featured: initial.featured,
-    photos: initial.photos.length ? [...initial.photos] : ([] as string[]),
+    made_by: initial.made_by as PieceMaker,
+    partner_id: initial.partner_id,
+    photos: (initial.photos.length
+      ? photoSlotsFromUrls(initial.photos)
+      : []) as PhotoSlot[],
   })
   const [pricing, setPricing] = useState<PricingFormState>({
     materialCost:
@@ -161,8 +181,9 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
         return
       }
 
+      const photoUrls = urlsFromPhotoSlots(form.photos)
       try {
-        assertPersistentImageUrls(form.photos)
+        assertPersistentImageUrls(photoUrls)
       } catch (err) {
         flash(err instanceof Error ? err.message : 'Invalid photo URLs.', true)
         return
@@ -214,9 +235,11 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
           width: form.width,
           material: form.material,
         },
-        photos: form.photos,
+        photos: photoUrls,
         featured: nextFeatured,
         sold: nextSold,
+        made_by: form.made_by,
+        partner_id: form.partner_id,
       })
 
       if (!result.ok) {
@@ -280,7 +303,10 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
         blob,
         `piece-${piece.id}-${Date.now()}`
       )
-      setForm((prev) => ({ ...prev, photos: [...prev.photos, url].slice(0, 5) }))
+      setForm((prev) => ({
+        ...prev,
+        photos: [...prev.photos, { id: crypto.randomUUID(), url }].slice(0, 5),
+      }))
       URL.revokeObjectURL(imageSrc)
       setImageSrc(null)
       flash('Photo uploaded — hit Save to keep it on the piece.')
@@ -464,25 +490,58 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
         <div className="bg-[#0A0C10] border border-[#27272A] p-8 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-[#00F2FE]" />
           <div className="flex justify-between items-end mb-6">
-            <h2 className="text-2xl display-font text-white">1. Photos</h2>
+            <div>
+              <h2 className="text-2xl display-font text-white">1. Photos</h2>
+              <p className="text-[#71717A] text-xs mt-1">
+                Drag to reorder · first photo is the display photo
+              </p>
+            </div>
             <span className="text-[#71717A] text-xs font-bold">{form.photos.length} / 5</span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {form.photos.map((url, i) => (
-              <div key={url} className="aspect-[4/5] relative border border-[#27272A]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setForm({ ...form, photos: form.photos.filter((_, idx) => idx !== i) })
-                  }
-                  className="absolute top-2 right-2 bg-red-900/80 w-6 h-6 text-sm"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+            <SortableList
+              items={form.photos}
+              onReorder={(next) => setForm({ ...form, photos: next })}
+              className="contents"
+              renderItem={(photo, { isDragging, dragHandleProps }) => (
+                <div className="flex flex-col">
+                  <div
+                    {...dragHandleProps}
+                    className={`aspect-[4/5] relative border cursor-grab active:cursor-grabbing ${
+                      isDragging
+                        ? 'border-[#00F2FE] opacity-60'
+                        : 'border-[#27272A] hover:border-[#14B8A6]'
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo.url}
+                      alt=""
+                      className="w-full h-full object-cover pointer-events-none"
+                      draggable={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setForm({
+                          ...form,
+                          photos: form.photos.filter((p) => p.id !== photo.id),
+                        })
+                      }}
+                      className="absolute top-2 right-2 z-10 bg-red-900/80 w-6 h-6 text-sm"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {form.photos[0]?.id === photo.id && (
+                    <p className="mt-2 text-sm md:text-base font-bold tracking-widest uppercase text-[#14B8A6] text-center">
+                      Display Photo
+                    </p>
+                  )}
+                </div>
+              )}
+            />
             {form.photos.length < 5 && (
               <button
                 type="button"
@@ -549,6 +608,38 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
               />
             </div>
           </div>
+
+          <div className="mt-8 pt-6 border-t border-[#27272A]">
+            <p className="text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
+              Partnership credit (optional)
+            </p>
+            <p className="text-[#52525B] text-xs mb-3">
+              Shown on the piece page — e.g. Stones Cut By · Name
+            </p>
+            <div className="flex flex-wrap gap-3 items-center">
+              <select
+                value={form.partner_id ?? ''}
+                onChange={(e) =>
+                  setForm({ ...form, partner_id: e.target.value ? e.target.value : null })
+                }
+                className="flex-1 min-w-[14rem] bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
+              >
+                <option value="">None</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.credit_label}: {p.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setPartnerModalOpen(true)}
+                className="px-4 py-3 border border-[#14B8A6] text-[#14B8A6] text-[10px] font-bold tracking-widest uppercase hover:bg-[#14B8A6] hover:text-black"
+              >
+                + Add New
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* 3. Pricing */}
@@ -575,6 +666,31 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
                 className="w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
               />
             </Field>
+          </div>
+
+          <div>
+            <p className="text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-3">
+              Made by
+            </p>
+            <div className="grid grid-cols-2 gap-2 max-w-md">
+              {PIECE_MAKERS.map((maker) => {
+                const selected = form.made_by === maker.id
+                return (
+                  <button
+                    key={maker.id}
+                    type="button"
+                    onClick={() => setForm({ ...form, made_by: maker.id })}
+                    className={`py-3 border display-font tracking-widest text-sm transition-colors ${
+                      selected
+                        ? 'border-[#14B8A6] bg-[#14B8A6]/15 text-[#00F2FE]'
+                        : 'border-[#27272A] text-[#A1A1AA] hover:border-[#14B8A6]'
+                    }`}
+                  >
+                    {maker.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div>
@@ -692,6 +808,17 @@ export default function PieceEditor({ piece: initial, categories, spotPerOz }: P
           </div>
         </div>
       )}
+
+      <PartnershipModal
+        open={partnerModalOpen}
+        onClose={() => setPartnerModalOpen(false)}
+        onCreated={(partner) => {
+          setPartners((prev) =>
+            prev.some((p) => p.id === partner.id) ? prev : [...prev, partner]
+          )
+          setForm((prev) => ({ ...prev, partner_id: partner.id }))
+        }}
+      />
     </div>
   )
 }

@@ -18,16 +18,28 @@ import {
 import PiecePricingFields, {
   type PricingFormState,
 } from '@/components/admin/PiecePricingFields'
-import type { Category } from '@/lib/types'
+import {
+  SortableList,
+  urlsFromPhotoSlots,
+  type PhotoSlot,
+} from '@/components/admin/SortableList'
+import PartnershipModal from '@/components/admin/PartnershipModal'
+import { PIECE_MAKERS, type PieceMaker } from '@/lib/makers'
+import type { Category, Partner } from '@/lib/types'
 
 const supabase = createClient()
 
 type AddPieceFormProps = {
   categories: Category[]
+  partners: Partner[]
   spotPerOz: number | null
 }
 
-export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProps) {
+export default function AddPieceForm({ categories, partners: initialPartners, spotPerOz }: AddPieceFormProps) {
+  const [madeBy, setMadeBy] = useState<PieceMaker | null>(null)
+  const [partners, setPartners] = useState(initialPartners)
+  const [partnerId, setPartnerId] = useState<string | null>(null)
+  const [partnerModalOpen, setPartnerModalOpen] = useState(false)
   const [categoryOptions, setCategoryOptions] = useState<Category[]>(categories)
   const [isSaving, setIsSaving] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -42,7 +54,7 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
     pieceType: '',
     customPieceType: '',
     description: '',
-    photos: [''] as string[],
+    photos: [{ id: crypto.randomUUID(), url: '' }] as PhotoSlot[],
     specs: {
       weight: '',
       size: '',
@@ -67,7 +79,7 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
 
   const [showOtherCategory, setShowOtherCategory] = useState(false)
 
-  const [activeCropIndex, setActiveCropIndex] = useState<number | null>(null)
+  const [activeCropId, setActiveCropId] = useState<string | null>(null)
   const [imageSrc, setImageSrc] = useState<string | null>(null)
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
@@ -88,8 +100,8 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
     })
   }
 
-  const handleFileClick = (index: number) => {
-    setActiveCropIndex(index)
+  const handleFileClick = (slotId: string) => {
+    setActiveCropId(slotId)
     setCroppedAreaPixels(null)
     setAspect(undefined)
     setZoom(1)
@@ -106,7 +118,7 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
   }
 
   const generateCropAndSave = async () => {
-    if (activeCropIndex === null || !imageSrc || !croppedAreaPixels) {
+    if (activeCropId === null || !imageSrc || !croppedAreaPixels) {
       setErrorMessage('Adjust the crop before saving.')
       return
     }
@@ -122,21 +134,24 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
         SHOP_INVENTORY_BUCKET,
         'pieces',
         blob,
-        `piece-${Date.now()}-${activeCropIndex + 1}`
+        `piece-${Date.now()}`
       )
 
-      const newPhotos = [...formData.photos]
-      newPhotos[activeCropIndex] = publicUrl
-
-      if (activeCropIndex === newPhotos.length - 1 && newPhotos.length < 5) {
-        newPhotos.push('')
-      }
-
-      setFormData({ ...formData, photos: newPhotos })
+      setFormData((prev) => {
+        const newPhotos = prev.photos.map((p) =>
+          p.id === activeCropId ? { ...p, url: publicUrl } : p
+        )
+        const filled = newPhotos.filter((p) => p.url).length
+        const hasEmpty = newPhotos.some((p) => !p.url)
+        if (filled < 5 && !hasEmpty) {
+          newPhotos.push({ id: crypto.randomUUID(), url: '' })
+        }
+        return { ...prev, photos: newPhotos }
+      })
       setStatusMessage('Image uploaded to Storage.')
       URL.revokeObjectURL(imageSrc)
       setImageSrc(null)
-      setActiveCropIndex(null)
+      setActiveCropId(null)
       setCroppedAreaPixels(null)
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Upload failed.')
@@ -145,12 +160,14 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
     }
   }
 
-  const removePhoto = (index: number) => {
-    const newPhotos = formData.photos.filter((_, i) => i !== index)
-    if (newPhotos.length === 0 || (newPhotos.length < 5 && newPhotos[newPhotos.length - 1] !== '')) {
-      newPhotos.push('')
-    }
-    setFormData({ ...formData, photos: newPhotos })
+  const removePhoto = (slotId: string) => {
+    setFormData((prev) => {
+      let newPhotos = prev.photos.filter((p) => p.id !== slotId)
+      if (newPhotos.length === 0 || (newPhotos.length < 5 && newPhotos.every((p) => p.url))) {
+        newPhotos = [...newPhotos, { id: crypto.randomUUID(), url: '' }]
+      }
+      return { ...prev, photos: newPhotos }
+    })
   }
 
   const handleAddCategory = async () => {
@@ -205,7 +222,7 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
     setErrorMessage(null)
     setStatusMessage(null)
 
-    const finalPhotos = formData.photos.filter((p) => p.trim() !== '')
+    const finalPhotos = urlsFromPhotoSlots(formData.photos).filter((p) => p.trim() !== '')
     if (finalPhotos.length === 0) {
       setErrorMessage('Add at least one photo.')
       setIsSaving(false)
@@ -267,6 +284,12 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
     const title = formData.title.trim() || 'Untitled'
     const storedPrice = resolvedPrice ?? 0
 
+    if (!madeBy) {
+      setErrorMessage('Choose who made this piece first.')
+      setIsSaving(false)
+      return
+    }
+
     const { error } = await supabase.from('shop_inventory').insert([
       {
         title,
@@ -289,6 +312,8 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
         buyer_name: markAsSold ? buyerName.trim() || null : null,
         buyer_email: markAsSold ? buyerEmail.trim().toLowerCase() || null : null,
         featured: false,
+        made_by: madeBy,
+        partner_id: partnerId,
       },
     ])
 
@@ -318,6 +343,39 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
       `,
         }}
       />
+
+      {!madeBy && (
+        <div className="fixed inset-0 z-[60] bg-[#05070A]/95 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="max-w-xl w-full text-center">
+            <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-[#14B8A6] mb-4">
+              Manual Vault Entry
+            </p>
+            <h1 className="text-4xl md:text-5xl display-font text-white mb-3">Made by</h1>
+            <p className="text-[#A1A1AA] text-sm mb-10 max-w-md mx-auto">
+              Choose who forged this piece — then fill in the listing. Visitors see this on the
+              piece page only.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {PIECE_MAKERS.map((maker) => (
+                <button
+                  key={maker.id}
+                  type="button"
+                  onClick={() => setMadeBy(maker.id)}
+                  className="border border-[#27272A] bg-[#0A0C10] py-10 px-6 display-font text-2xl tracking-widest text-white hover:border-[#14B8A6] hover:text-[#00F2FE] transition-colors"
+                >
+                  {maker.label}
+                </button>
+              ))}
+            </div>
+            <Link
+              href="/admin"
+              className="inline-block mt-10 text-[10px] font-bold tracking-[0.2em] uppercase text-[#71717A] hover:text-[#14B8A6]"
+            >
+              &larr; Back to Control Panel
+            </Link>
+          </div>
+        </div>
+      )}
 
       <input
         type="file"
@@ -377,7 +435,7 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
               onClick={() => {
                 URL.revokeObjectURL(imageSrc)
                 setImageSrc(null)
-                setActiveCropIndex(null)
+                setActiveCropId(null)
                 setCroppedAreaPixels(null)
               }}
               disabled={isUploading}
@@ -408,6 +466,23 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
           <p className="text-[#A1A1AA] text-sm mt-2">
             Bypass the live workbench and insert directly into the shop inventory.
           </p>
+          {madeBy && (
+            <p className="mt-4 text-sm">
+              <span className="text-[#71717A] uppercase tracking-widest text-[10px] font-bold mr-2">
+                Made by
+              </span>
+              <span className="text-[#14B8A6] display-font tracking-wider text-xl">
+                {madeBy === 'joeline' ? 'Joeline' : 'Mark'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setMadeBy(null)}
+                className="ml-4 text-[10px] font-bold tracking-widest uppercase text-[#71717A] hover:text-white"
+              >
+                Change
+              </button>
+            </p>
+          )}
         </div>
 
         {(errorMessage || statusMessage) && (
@@ -426,41 +501,83 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
         <div className="bg-[#0A0C10] p-8 border border-[#27272A] rounded-sm shadow-xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-[#00F2FE]"></div>
           <div className="flex justify-between items-end mb-6">
-            <h2 className="text-2xl display-font text-white">1. Visuals</h2>
+            <div>
+              <h2 className="text-2xl display-font text-white">1. Visuals</h2>
+              <p className="text-[#71717A] text-xs mt-1">
+                Drag to reorder · first photo is the display photo
+              </p>
+            </div>
             <span className="text-[#71717A] text-xs font-bold">
-              {formData.photos.filter((p) => p !== '').length} / 5 Loaded
+              {formData.photos.filter((p) => p.url).length} / 5 Loaded
             </span>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {formData.photos.map((img, index) => (
-              <div
-                key={index}
-                className="aspect-[4/5] bg-[#05070A] border border-[#27272A] relative group"
-              >
-                {!img ? (
-                  <button
-                    onClick={() => handleFileClick(index)}
-                    className="w-full h-full flex flex-col items-center justify-center text-[#71717A] hover:text-[#00F2FE] hover:border-[#00F2FE] border border-transparent transition-all"
-                  >
-                    <span className="text-2xl mb-2">📸</span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest">
-                      {index === 0 ? 'Primary' : 'Add Angle'}
-                    </span>
-                  </button>
-                ) : (
-                  <>
-                    <img src={img} className="w-full h-full object-cover" alt="Angle" />
-                    <button
-                      onClick={() => removePhoto(index)}
-                      className="absolute top-2 right-2 bg-red-900/80 text-white w-6 h-6 flex items-center justify-center rounded-sm hover:bg-red-500 transition-colors"
+            <SortableList
+              items={formData.photos}
+              onReorder={(next) => setFormData({ ...formData, photos: next })}
+              className="contents"
+              renderItem={(slot, { isDragging, dragHandleProps }) => {
+                const filledIndex = formData.photos
+                  .filter((p) => p.url)
+                  .findIndex((p) => p.id === slot.id)
+                const isDisplay = Boolean(slot.url) && filledIndex === 0
+                return (
+                  <div className="flex flex-col">
+                    <div
+                      {...(slot.url ? dragHandleProps : { draggable: false as const })}
+                      className={`aspect-[4/5] bg-[#05070A] border relative group ${
+                        slot.url
+                          ? `cursor-grab active:cursor-grabbing ${
+                              isDragging
+                                ? 'border-[#00F2FE] opacity-60'
+                                : 'border-[#27272A] hover:border-[#14B8A6]'
+                            }`
+                          : 'border-[#27272A]'
+                      }`}
                     >
-                      &times;
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
+                      {!slot.url ? (
+                        <button
+                          type="button"
+                          onClick={() => handleFileClick(slot.id)}
+                          className="w-full h-full flex flex-col items-center justify-center text-[#71717A] hover:text-[#00F2FE] hover:border-[#00F2FE] border border-transparent transition-all"
+                        >
+                          <span className="text-2xl mb-2">📸</span>
+                          <span className="text-[10px] font-bold uppercase tracking-widest">
+                            {formData.photos.every((p) => !p.url) ? 'Display Photo' : 'Add Angle'}
+                          </span>
+                        </button>
+                      ) : (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={slot.url}
+                            className="w-full h-full object-cover pointer-events-none"
+                            alt="Angle"
+                            draggable={false}
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removePhoto(slot.id)
+                            }}
+                            className="absolute top-2 right-2 z-10 bg-red-900/80 text-white w-6 h-6 flex items-center justify-center rounded-sm hover:bg-red-500 transition-colors"
+                          >
+                            &times;
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {isDisplay && (
+                      <p className="mt-2 text-sm md:text-base font-bold tracking-widest uppercase text-[#14B8A6] text-center">
+                        Display Photo
+                      </p>
+                    )}
+                  </div>
+                )
+              }}
+            />
           </div>
         </div>
 
@@ -648,6 +765,36 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
               />
             </div>
           </div>
+
+          <div className="mt-8 pt-6 border-t border-[#27272A]">
+            <p className="text-[#14B8A6] text-[10px] font-bold tracking-[0.2em] uppercase mb-2">
+              Partnership credit (optional)
+            </p>
+            <p className="text-[#52525B] text-xs mb-3">
+              Shown on the piece page — e.g. Stones Cut By · Name
+            </p>
+            <div className="flex flex-wrap gap-3 items-center">
+              <select
+                value={partnerId ?? ''}
+                onChange={(e) => setPartnerId(e.target.value ? e.target.value : null)}
+                className="flex-1 min-w-[14rem] bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
+              >
+                <option value="">None</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.credit_label}: {p.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setPartnerModalOpen(true)}
+                className="px-4 py-3 border border-[#14B8A6] text-[#14B8A6] text-[10px] font-bold tracking-widest uppercase hover:bg-[#14B8A6] hover:text-black"
+              >
+                + Add New
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="bg-[#0A0C10] p-8 border border-[#B59A54]/40 rounded-sm shadow-xl relative overflow-hidden">
@@ -706,6 +853,17 @@ export default function AddPieceForm({ categories, spotPerOz }: AddPieceFormProp
           {isSaving ? 'SECURING...' : markAsSold ? 'ARCHIVE AS SOLD' : 'SECURE IN VAULT'}
         </button>
       </div>
+
+      <PartnershipModal
+        open={partnerModalOpen}
+        onClose={() => setPartnerModalOpen(false)}
+        onCreated={(partner) => {
+          setPartners((prev) =>
+            prev.some((p) => p.id === partner.id) ? prev : [...prev, partner]
+          )
+          setPartnerId(partner.id)
+        }}
+      />
     </div>
   )
 }

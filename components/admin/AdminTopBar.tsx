@@ -10,6 +10,7 @@ import type { SilverQuote } from '@/lib/silver'
 import type { Category, ShopPiece } from '@/lib/types'
 import AdminSilverStrip from '@/components/admin/AdminSilverStrip'
 import AdminPieceSearch from '@/components/admin/AdminPieceSearch'
+import PartnershipModal from '@/components/admin/PartnershipModal'
 
 const FUTURES_URL = 'https://www.google.com/search?q=COMEX+silver+futures+SI%3DF'
 
@@ -32,6 +33,7 @@ export default function AdminTopBar({
   const [reviewDue, setReviewDue] = useState(initialReviewDue)
   const [gearOpen, setGearOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [partnershipOpen, setPartnershipOpen] = useState(false)
   const gearRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const router = useRouter()
@@ -121,6 +123,25 @@ export default function AdminTopBar({
             )}
           </Link>
 
+          <button
+            type="button"
+            onClick={() => setPartnershipOpen(true)}
+            className="w-10 h-10 flex items-center justify-center border border-[#27272A] text-[#A1A1AA] hover:border-[#14B8A6] hover:text-white transition-colors"
+            aria-label="Partnerships"
+            title="Partnerships"
+          >
+            {/* Handshake */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M8 12l2.5 2.5L16 9M4.5 11.5l3-3a2 2 0 012.8 0L12 10l1.7-1.5a2 2 0 012.8 0l3 3M7 16l-2 2M17 16l2 2"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+
           <Link
             href="/admin/messages"
             className={`relative w-10 h-10 flex items-center justify-center border transition-colors ${
@@ -189,7 +210,7 @@ export default function AdminTopBar({
                   className="block px-4 py-3 text-[10px] font-bold tracking-widest uppercase text-[#A1A1AA] hover:bg-[#14B8A6]/10 hover:text-white"
                   onClick={() => setGearOpen(false)}
                 >
-                  Know Mark
+                  Joeline &amp; Mark
                 </Link>
                 <button
                   type="button"
@@ -204,6 +225,8 @@ export default function AdminTopBar({
           </div>
         </div>
       </div>
+
+      <PartnershipModal open={partnershipOpen} onClose={() => setPartnershipOpen(false)} />
     </div>
   )
 }

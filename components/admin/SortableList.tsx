@@ -3,7 +3,9 @@
 import { useState, type DragEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 
-type SortableListProps<T extends { id: string }> = {
+type ItemId = string | number
+
+type SortableListProps<T extends { id: ItemId }> = {
   items: T[]
   onReorder: (next: T[]) => void
   className?: string
@@ -19,17 +21,17 @@ type DragHandleProps = {
 }
 
 /** Lightweight HTML5 drag-and-drop list. Whole card is the handle. */
-export function SortableList<T extends { id: string }>({
+export function SortableList<T extends { id: ItemId }>({
   items,
   onReorder,
   className,
   itemClassName,
   renderItem,
 }: SortableListProps<T>) {
-  const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [overId, setOverId] = useState<string | null>(null)
+  const [draggingId, setDraggingId] = useState<ItemId | null>(null)
+  const [overId, setOverId] = useState<ItemId | null>(null)
 
-  const move = (fromId: string, toId: string) => {
+  const move = (fromId: ItemId, toId: ItemId) => {
     if (fromId === toId) return
     const from = items.findIndex((i) => i.id === fromId)
     const to = items.findIndex((i) => i.id === toId)
@@ -73,7 +75,7 @@ export function SortableList<T extends { id: string }>({
                 onDragStart: (e) => {
                   setDraggingId(item.id)
                   e.dataTransfer.effectAllowed = 'move'
-                  e.dataTransfer.setData('text/plain', item.id)
+                  e.dataTransfer.setData('text/plain', String(item.id))
                 },
                 onDragEnd: () => {
                   setDraggingId(null)
@@ -86,6 +88,17 @@ export function SortableList<T extends { id: string }>({
       })}
     </div>
   )
+}
+
+/** Stable id + url slot for photo arrays that need drag-reorder. */
+export type PhotoSlot = { id: string; url: string }
+
+export function photoSlotsFromUrls(urls: string[]): PhotoSlot[] {
+  return urls.map((url) => ({ id: crypto.randomUUID(), url }))
+}
+
+export function urlsFromPhotoSlots(slots: PhotoSlot[]): string[] {
+  return slots.map((s) => s.url)
 }
 
 export function PencilButton({
