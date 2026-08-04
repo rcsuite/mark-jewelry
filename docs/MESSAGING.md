@@ -28,6 +28,14 @@ How Contact / Inquire / Admin Messages work, and what must be configured for ema
 
 - `/admin/messages` — thread list + reply. Opening a thread clears unread and cancels
   the pending email reminder for those messages.
+- **Payment pills:** two buttons (PayPal · Zelle) above the composer. Tap one to open
+  **Finalize info** (piece name + amount prefilled from the inquired piece — Mark can change
+  the price for a discount). Done loads a colored “Pay with … · $X” pill into the draft;
+  optional chat note + Send. The message body stores a token like
+  `[[payment:paypal|t=…|a=235|n=…]]` (`lib/chat-format.ts`). Visitors tap the pill for amount,
+  note, copyable handle, and a PayPal.me deep link when available.
+- Handles live on `site_settings` (`paypal_handle`, `zelle_target`). Edit once via
+  **gear menu → Payment options** (any admin page).
 - Admin hub top bar: red messages icon + unread badge; popup when a new unread arrives
   (`AdminIncomingMessageAlert`).
 - Away banner for visitors when `mark_presence.last_active_at` is older than ~30s
@@ -72,3 +80,4 @@ Without `RESEND_API_KEY` / `MARK_NOTIFY_EMAIL`, the app logs that email was skip
 - `components/chat/*`, `components/admin/AdminMessagesInbox.tsx`
 - `components/admin/AdminIncomingMessageAlert.tsx`
 - `app/api/cron/chat-reminders/route.ts`
+- Payment handles: `site_settings` + `updatePaymentMethods` in `lib/actions.ts`

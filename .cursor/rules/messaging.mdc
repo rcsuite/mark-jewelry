@@ -14,6 +14,12 @@ When a visitor inquires about a piece, prepend `@Piece Title` into the **message
 via `withPieceTag` so history stays clear for visitor and Mark. Render with
 `ChatBubbleBody`. Do not hide the piece name only on the thread row.
 
+## Payment pills
+
+Mark taps PayPal / Zelle → **Finalize info** (edit name/price) → Done → draft pill → Send.
+Token: `[[payment:paypal|t=…|a=235|n=…]]`. Handles live in `site_settings`; edit via admin
+gear → **Payment options**.
+
 ## Email
 
 Requires `RESEND_API_KEY` + `MARK_NOTIFY_EMAIL`. Unread live messages wait ~2 minutes

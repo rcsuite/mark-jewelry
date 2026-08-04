@@ -9,22 +9,66 @@ import {
   touchMarkPresence,
 } from '@/lib/chat-actions'
 import type { ChatMessage, ChatThreadSummary } from '@/lib/chat-types'
+import type { PaymentHandles, PaymentMethod } from '@/lib/types'
+import {
+  PAYMENT_METHODS,
+  paymentMethodLabel,
+  paymentPillLabel,
+  withPaymentToken,
+  type PaymentOffer,
+} from '@/lib/chat-format'
 import ChatBubbleBody from '@/components/chat/ChatBubbleBody'
+import PaymentFinalizeModal, {
+  type PaymentFinalizeDefaults,
+} from '@/components/admin/PaymentFinalizeModal'
+
+type PieceOfferDefaults = {
+  title: string
+  price: number | null
+  inquire_for_price: boolean
+} | null
+
+function defaultsFromPiece(
+  pieceOffer: PieceOfferDefaults,
+  active: ChatThreadSummary | null
+): PaymentFinalizeDefaults {
+  const title =
+    pieceOffer?.title ||
+    active?.piece_title ||
+    active?.viewing_context ||
+    ''
+  const amount =
+    pieceOffer?.price != null && Number.isFinite(pieceOffer.price)
+      ? String(Math.round(pieceOffer.price * 100) / 100)
+      : ''
+  return { title, amount, note: '' }
+}
 
 export default function AdminMessagesInbox({
   initialThreads,
+  initialPaymentHandles,
 }: {
   initialThreads: ChatThreadSummary[]
+  initialPaymentHandles: PaymentHandles
 }) {
   const [threads, setThreads] = useState(initialThreads)
   const [activeId, setActiveId] = useState<string | null>(initialThreads[0]?.id ?? null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [active, setActive] = useState<ChatThreadSummary | null>(null)
+  const [pieceOffer, setPieceOffer] = useState<PieceOfferDefaults>(null)
   const [draft, setDraft] = useState('')
+  const [draftOffer, setDraftOffer] = useState<PaymentOffer | null>(null)
+  const [finalizeMethod, setFinalizeMethod] = useState<PaymentMethod | null>(null)
+  const [handles, setHandles] = useState<PaymentHandles>(initialPaymentHandles)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const bottomRef = useRef<HTMLDivElement>(null)
   const lastPresenceRef = useRef(0)
+  const draftInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setHandles(initialPaymentHandles)
+  }, [initialPaymentHandles])
 
   const pulsePresence = () => {
     const now = Date.now()
@@ -54,6 +98,7 @@ export default function AdminMessagesInbox({
       }
       setActive(result.data!.thread)
       setMessages(result.data!.messages)
+      setPieceOffer(result.data!.pieceOffer)
       setThreads((prev) =>
         prev.map((t) => (t.id === id ? { ...t, unread_for_mark: 0 } : t))
       )
@@ -76,6 +121,7 @@ export default function AdminMessagesInbox({
           if (t.ok && t.data) {
             setMessages(t.data.messages)
             setActive(t.data.thread)
+            setPieceOffer(t.data.pieceOffer)
           }
         }
       })()
@@ -87,18 +133,28 @@ export default function AdminMessagesInbox({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  const handleFor = (method: PaymentMethod): string | null => {
+    if (method === 'paypal') return handles.paypal_handle
+    return handles.zelle_target
+  }
+
   const reply = () => {
-    if (!activeId || !draft.trim()) return
+    if (!activeId) return
+    const body = withPaymentToken(draft, draftOffer)
+    if (!body.trim()) return
     startTransition(async () => {
-      const result = await sendMarkReply(activeId, draft)
+      const result = await sendMarkReply(activeId, body)
       if (!result.ok) {
         setError(result.error)
         return
       }
       setDraft('')
+      setDraftOffer(null)
       setMessages((prev) => [...prev, result.data!.message])
     })
   }
+
+  const canSend = Boolean(draft.trim() || draftOffer)
 
   return (
     <div className="min-h-screen bg-[#05070A] text-white font-sans">
@@ -118,10 +174,10 @@ export default function AdminMessagesInbox({
         >
           ← Control panel
         </Link>
-        <h1 className="display-font text-3xl mt-4 mb-6">Messages</h1>
-        <p className="text-[#71717A] text-sm mb-6">
-          Live chats from the site. First visitor message can email you; replies stay in-app so
-          you aren’t spammed.
+        <h1 className="display-font text-3xl mt-4">Messages</h1>
+        <p className="text-[#71717A] text-sm mt-2 mb-6 max-w-xl">
+          Live chats from the site. When someone is ready to buy, tap PayPal or Zelle, finalize the
+          price, then Send. Set handles in the gear menu → Payment options.
         </p>
 
         {error && (
@@ -139,7 +195,11 @@ export default function AdminMessagesInbox({
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => setActiveId(t.id)}
+                  onClick={() => {
+                    setDraftOffer(null)
+                    setFinalizeMethod(null)
+                    setActiveId(t.id)
+                  }}
                   className={`w-full text-left px-4 py-3 border-b border-[#27272A] hover:bg-[#14B8A6]/10 ${
                     activeId === t.id ? 'bg-[#14B8A6]/15' : ''
                   }`}
@@ -185,36 +245,105 @@ export default function AdminMessagesInbox({
                           : 'mr-auto bg-[#18181B] border border-[#27272A]'
                       }`}
                     >
-                      <ChatBubbleBody body={m.body} fallbackPieceId={active.piece_id} />
+                      <ChatBubbleBody
+                        body={m.body}
+                        fallbackPieceId={active.piece_id}
+                        paymentHandles={handles}
+                      />
                     </div>
                   ))}
                   <div ref={bottomRef} />
                 </div>
-                <div className="p-3 border-t border-[#27272A] flex gap-2">
-                  <input
-                    value={draft}
-                    onChange={(e) => {
-                      setDraft(e.target.value)
-                      pulsePresence()
-                    }}
-                    onKeyDown={(e) => {
-                      pulsePresence()
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        reply()
-                      }
-                    }}
-                    placeholder="Reply to visitor…"
-                    className="flex-1 bg-[#05070A] border border-[#27272A] px-3 py-2 text-sm outline-none focus:border-[#14B8A6]"
-                  />
-                  <button
-                    type="button"
-                    onClick={reply}
-                    disabled={pending || !draft.trim()}
-                    className="px-4 py-2 bg-[#B59A54] text-black text-[10px] font-bold uppercase tracking-widest disabled:opacity-50"
-                  >
-                    Send
-                  </button>
+                <div className="p-3 border-t border-[#27272A] space-y-2">
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <span className="text-[9px] uppercase tracking-widest text-[#52525B]">
+                      Send payment
+                    </span>
+                    {PAYMENT_METHODS.map((method) => {
+                      const configured = Boolean(handleFor(method))
+                      const selected = draftOffer?.method === method
+                      return (
+                        <button
+                          key={method}
+                          type="button"
+                          disabled={!configured}
+                          title={
+                            configured
+                              ? `Finalize ${paymentMethodLabel(method)} offer`
+                              : `Set your ${paymentMethodLabel(method)} handle in gear → Payment options`
+                          }
+                          onClick={() => {
+                            pulsePresence()
+                            if (draftOffer?.method === method) {
+                              setDraftOffer(null)
+                              return
+                            }
+                            setFinalizeMethod(method)
+                          }}
+                          className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                            selected
+                              ? 'bg-[#14B8A6] text-black border-[#14B8A6]'
+                              : 'border-[#27272A] text-[#A1A1AA] hover:border-[#14B8A6] hover:text-[#14B8A6]'
+                          }`}
+                        >
+                          {paymentMethodLabel(method)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {draftOffer && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (
+                            draftOffer.method === 'paypal' ||
+                            draftOffer.method === 'zelle'
+                          ) {
+                            setFinalizeMethod(draftOffer.method)
+                          }
+                        }}
+                        className="inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-bold tracking-wide bg-[#14B8A6]/25 border border-[#14B8A6] text-[#00F2FE] hover:bg-[#14B8A6]/40"
+                        title="Edit finalize info"
+                      >
+                        {paymentPillLabel(draftOffer)}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDraftOffer(null)}
+                        className="text-[10px] text-[#71717A] hover:text-white uppercase tracking-widest"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      ref={draftInputRef}
+                      value={draft}
+                      onChange={(e) => {
+                        setDraft(e.target.value)
+                        pulsePresence()
+                      }}
+                      onKeyDown={(e) => {
+                        pulsePresence()
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          reply()
+                        }
+                      }}
+                      placeholder="Reply to visitor…"
+                      className="flex-1 bg-[#05070A] border border-[#27272A] px-3 py-2 text-sm outline-none focus:border-[#14B8A6]"
+                    />
+                    <button
+                      type="button"
+                      onClick={reply}
+                      disabled={pending || !canSend}
+                      className="px-4 py-2 bg-[#B59A54] text-black text-[10px] font-bold uppercase tracking-widest disabled:opacity-50"
+                    >
+                      Send
+                    </button>
+                  </div>
                 </div>
               </>
             ) : (
@@ -223,6 +352,27 @@ export default function AdminMessagesInbox({
           </section>
         </div>
       </div>
+
+      {finalizeMethod && (
+        <PaymentFinalizeModal
+          method={finalizeMethod}
+          defaults={
+            draftOffer?.method === finalizeMethod
+              ? {
+                  title: draftOffer.title,
+                  amount: draftOffer.amount,
+                  note: draftOffer.note,
+                }
+              : defaultsFromPiece(pieceOffer, active)
+          }
+          onCancel={() => setFinalizeMethod(null)}
+          onDone={(offer) => {
+            setDraftOffer(offer)
+            setFinalizeMethod(null)
+            window.setTimeout(() => draftInputRef.current?.focus(), 50)
+          }}
+        />
+      )}
     </div>
   )
 }

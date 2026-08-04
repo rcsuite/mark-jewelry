@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ContactProvider } from "@/components/chat/ContactProvider";
 import PublicChatMount from "@/components/chat/PublicChatMount";
+import { getSiteSettings } from "@/lib/queries";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,20 +38,32 @@ export const viewport: Viewport = {
   themeColor: "#05070A",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const settings = await getSiteSettings();
+
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <ContactProvider>
+        <ContactProvider
+          paymentHandles={{
+            paypal_handle: settings.paypal_handle,
+            zelle_target: settings.zelle_target,
+          }}
+        >
           {children}
-          <PublicChatMount />
+          <PublicChatMount
+            paymentHandles={{
+              paypal_handle: settings.paypal_handle,
+              zelle_target: settings.zelle_target,
+            }}
+          />
         </ContactProvider>
       </body>
     </html>

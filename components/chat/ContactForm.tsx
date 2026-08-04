@@ -5,11 +5,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { startChat } from '@/lib/chat-actions'
 import { withPieceTag } from '@/lib/chat-format'
+import type { PaymentHandles } from '@/lib/types'
 import ChatWidget from '@/components/chat/ChatWidget'
 
 type Props = {
   pieceId?: string | null
   pieceTitle?: string | null
+  paymentHandles?: PaymentHandles | null
 }
 
 type Path = 'new' | 'continue' | 'email'
@@ -24,7 +26,11 @@ const tabClass = (active: boolean) =>
 const fieldClass =
   'mt-2 w-full bg-[#18181B] border border-[#3F3F46] p-3 text-white caret-[#14B8A6] placeholder:text-[#71717A] outline-none focus:border-[#14B8A6]'
 
-export default function ContactForm({ pieceId, pieceTitle }: Props) {
+export default function ContactForm({
+  pieceId,
+  pieceTitle,
+  paymentHandles = null,
+}: Props) {
   const router = useRouter()
   const [path, setPath] = useState<Path>('new')
   const [name, setName] = useState('')
@@ -236,7 +242,7 @@ export default function ContactForm({ pieceId, pieceTitle }: Props) {
         </div>
       </div>
 
-      <ChatWidget initiallyOpen={openWidget} />
+      <ChatWidget initiallyOpen={openWidget} paymentHandles={paymentHandles} />
     </div>
   )
 }

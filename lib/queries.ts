@@ -19,6 +19,8 @@ import type {
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   handiworks_display_count: 4,
   sold_display_count: 12,
+  paypal_handle: null,
+  zelle_target: null,
 }
 
 function clampDisplayCount(n: unknown, fallback: number): number {
@@ -27,11 +29,19 @@ function clampDisplayCount(n: unknown, fallback: number): number {
   return Math.min(48, Math.max(1, Math.round(v)))
 }
 
+function trimOrNull(v: unknown): string | null {
+  if (typeof v !== 'string') return null
+  const t = v.trim()
+  return t || null
+}
+
 export async function getSiteSettings(): Promise<SiteSettings> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('site_settings')
-    .select('handiworks_display_count, sold_display_count')
+    .select(
+      'handiworks_display_count, sold_display_count, paypal_handle, zelle_target'
+    )
     .eq('id', 1)
     .maybeSingle()
 
@@ -51,6 +61,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       data.sold_display_count,
       DEFAULT_SITE_SETTINGS.sold_display_count
     ),
+    paypal_handle: trimOrNull(data.paypal_handle),
+    zelle_target: trimOrNull(data.zelle_target),
   }
 }
 

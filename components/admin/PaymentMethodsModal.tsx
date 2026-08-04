@@ -1,30 +1,35 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { createPartner } from '@/lib/actions'
-import type { Partner } from '@/lib/types'
+import { useRouter } from 'next/navigation'
+import { updatePaymentMethods } from '@/lib/actions'
+import type { PaymentHandles } from '@/lib/types'
 
 type Props = {
   open: boolean
   onClose: () => void
-  /** Called after a successful create — use to select the new partner on a piece. */
-  onCreated?: (partner: Partner) => void
+  initialHandles: PaymentHandles
+  onSaved?: (handles: PaymentHandles) => void
 }
 
-export default function PartnershipModal({ open, onClose, onCreated }: Props) {
-  const [creditLabel, setCreditLabel] = useState('')
-  const [name, setName] = useState('')
-  const [url, setUrl] = useState('')
+export default function PaymentMethodsModal({
+  open,
+  onClose,
+  initialHandles,
+  onSaved,
+}: Props) {
+  const router = useRouter()
+  const [paypal, setPaypal] = useState(initialHandles.paypal_handle ?? '')
+  const [zelle, setZelle] = useState(initialHandles.zelle_target ?? '')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
   useEffect(() => {
     if (!open) return
-    setCreditLabel('')
-    setName('')
-    setUrl('')
+    setPaypal(initialHandles.paypal_handle ?? '')
+    setZelle(initialHandles.zelle_target ?? '')
     setError(null)
-  }, [open])
+  }, [open, initialHandles])
 
   useEffect(() => {
     if (!open) return
@@ -39,16 +44,20 @@ export default function PartnershipModal({ open, onClose, onCreated }: Props) {
 
   const save = () => {
     startTransition(async () => {
-      const result = await createPartner({
-        credit_label: creditLabel,
-        name,
-        url: url.trim() || null,
+      const result = await updatePaymentMethods({
+        paypal_handle: paypal,
+        zelle_target: zelle,
       })
       if (!result.ok) {
         setError(result.error)
         return
       }
-      onCreated?.(result.data!)
+      const next: PaymentHandles = {
+        paypal_handle: result.data!.paypal_handle,
+        zelle_target: result.data!.zelle_target,
+      }
+      onSaved?.(next)
+      router.refresh()
       onClose()
     })
   }
@@ -64,16 +73,16 @@ export default function PartnershipModal({ open, onClose, onCreated }: Props) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="partnership-modal-title"
+        aria-labelledby="payment-methods-title"
         className="relative w-full max-w-md bg-[#0A0C10] border border-[#27272A] p-8 shadow-2xl"
       >
         <div className="absolute top-0 left-0 w-full h-1 bg-[#14B8A6]" />
-        <h2 id="partnership-modal-title" className="display-font text-2xl text-white mb-2">
-          Add partnership
+        <h2 id="payment-methods-title" className="display-font text-2xl text-white mb-2">
+          Payment options
         </h2>
         <p className="text-[#71717A] text-xs mb-6 leading-relaxed">
-          Credit someone who helped on a piece. You can attach them when editing specs; visitors
-          see it on the piece page.
+          PayPal and Zelle only. When you send a payment pill in Messages, visitors see these
+          details. Prefer a PayPal.me link or username so “Open PayPal” works.
         </p>
 
         {error && (
@@ -85,39 +94,25 @@ export default function PartnershipModal({ open, onClose, onCreated }: Props) {
         <div className="space-y-4">
           <label className="block">
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
-              Credit label
+              PayPal
             </span>
             <input
-              value={creditLabel}
-              onChange={(e) => setCreditLabel(e.target.value)}
+              value={paypal}
+              onChange={(e) => setPaypal(e.target.value)}
               className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
-              placeholder="(Example: Stones Cut By)"
+              placeholder="paypal.me/YourName or email"
               autoFocus
             />
-            
           </label>
-
           <label className="block">
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
-              Name
+              Zelle
             </span>
             <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={zelle}
+              onChange={(e) => setZelle(e.target.value)}
               className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54]"
-              placeholder="Partner name"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#14B8A6]">
-              Website or social
-            </span>
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="mt-2 w-full bg-[#05070A] border border-[#27272A] p-3 text-white outline-none focus:border-[#B59A54] font-mono text-xs"
-              placeholder="Copy and paste web link here"
+              placeholder="Email or phone"
             />
           </label>
         </div>
@@ -129,7 +124,7 @@ export default function PartnershipModal({ open, onClose, onCreated }: Props) {
             disabled={pending}
             className="px-6 py-3 bg-[#14B8A6] text-black text-[10px] font-bold tracking-widest uppercase disabled:opacity-50"
           >
-            {pending ? 'Saving…' : 'Save partner'}
+            {pending ? 'Saving…' : 'Save'}
           </button>
           <button
             type="button"

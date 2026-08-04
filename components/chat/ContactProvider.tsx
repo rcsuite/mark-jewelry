@@ -14,6 +14,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import ContactModal from '@/components/chat/ContactModal'
 import { focusChatAboutPiece } from '@/lib/chat-actions'
+import type { PaymentHandles } from '@/lib/types'
 
 export type ContactOpenOptions = {
   pieceId?: string | null
@@ -32,6 +33,7 @@ export type ChatFocusDetail = {
 type ContactContextValue = {
   openContact: (opts?: ContactOpenOptions) => void
   closeContact: () => void
+  paymentHandles: PaymentHandles | null
 }
 
 const ContactContext = createContext<ContactContextValue | null>(null)
@@ -84,7 +86,13 @@ function ContactDeepLinkListener({
   return null
 }
 
-export function ContactProvider({ children }: { children: ReactNode }) {
+export function ContactProvider({
+  children,
+  paymentHandles = null,
+}: {
+  children: ReactNode
+  paymentHandles?: PaymentHandles | null
+}) {
   const [open, setOpen] = useState(false)
   const [opts, setOpts] = useState<ContactOpenOptions>({})
   const [, startTransition] = useTransition()
@@ -124,8 +132,8 @@ export function ContactProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo(
-    () => ({ openContact, closeContact }),
-    [openContact, closeContact]
+    () => ({ openContact, closeContact, paymentHandles: paymentHandles ?? null }),
+    [openContact, closeContact, paymentHandles]
   )
 
   return (

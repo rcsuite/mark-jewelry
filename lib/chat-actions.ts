@@ -10,6 +10,7 @@ import {
   type ChatThreadSummary,
 } from '@/lib/chat-types'
 import { adminMessagesUrl } from '@/lib/site-url'
+import { getPieceById } from '@/lib/queries'
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string }
 
@@ -478,6 +479,11 @@ export async function getAdminThread(threadId: string): Promise<
   ActionResult<{
     thread: ChatThreadSummary
     messages: ChatMessage[]
+    pieceOffer: {
+      title: string
+      price: number | null
+      inquire_for_price: boolean
+    } | null
   }>
 > {
   const { supabase, user } = await requireUser()
@@ -502,6 +508,37 @@ export async function getAdminThread(threadId: string): Promise<
 
   if (msgErr) return { ok: false, error: msgErr.message }
 
+  let pieceOffer: {
+    title: string
+    price: number | null
+    inquire_for_price: boolean
+  } | null = null
+
+  const pieceId = (thread as ChatThreadSummary).piece_id
+  const fallbackTitle =
+    (thread as ChatThreadSummary).piece_title ||
+    (thread as ChatThreadSummary).viewing_context ||
+    ''
+
+  if (pieceId) {
+    const piece = await getPieceById(pieceId)
+    if (piece) {
+      pieceOffer = {
+        title: piece.title || fallbackTitle,
+        price: piece.inquire_for_price ? null : piece.price,
+        inquire_for_price: piece.inquire_for_price,
+      }
+    }
+  }
+
+  if (!pieceOffer && fallbackTitle) {
+    pieceOffer = {
+      title: fallbackTitle,
+      price: null,
+      inquire_for_price: true,
+    }
+  }
+
   await supabase.rpc('mark_thread_seen_by_mark', { p_thread_id: threadId })
 
   return {
@@ -509,6 +546,7 @@ export async function getAdminThread(threadId: string): Promise<
     data: {
       thread: { ...(thread as ChatThreadSummary), unread_for_mark: 0 },
       messages: (messages ?? []) as ChatMessage[],
+      pieceOffer,
     },
   }
 }

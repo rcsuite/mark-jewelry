@@ -541,6 +541,39 @@ export async function upsertReview(input: {
   return { ok: true, data: toReview(data as Record<string, unknown>) }
 }
 
+function clampSiteCount(n: number, fallback: number) {
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(48, Math.max(1, Math.round(n)))
+}
+
+function trimPaymentField(v: string | null | undefined): string | null {
+  if (v == null) return null
+  const t = v.trim()
+  return t || null
+}
+
+function mapSiteSettingsRow(data: Record<string, unknown>): SiteSettings {
+  return {
+    handiworks_display_count: clampSiteCount(
+      Number(data.handiworks_display_count),
+      DEFAULT_SITE_SETTINGS.handiworks_display_count
+    ),
+    sold_display_count: clampSiteCount(
+      Number(data.sold_display_count),
+      DEFAULT_SITE_SETTINGS.sold_display_count
+    ),
+    paypal_handle: trimPaymentField(
+      typeof data.paypal_handle === 'string' ? data.paypal_handle : null
+    ),
+    zelle_target: trimPaymentField(
+      typeof data.zelle_target === 'string' ? data.zelle_target : null
+    ),
+  }
+}
+
+const SITE_SETTINGS_SELECT =
+  'handiworks_display_count, sold_display_count, paypal_handle, zelle_target'
+
 export async function updateHomepageDisplayCounts(input: {
   handiworks_display_count?: number
   sold_display_count?: number
@@ -548,36 +581,25 @@ export async function updateHomepageDisplayCounts(input: {
   const { supabase, user } = await requireUser()
   if (!user) return { ok: false, error: 'Unauthorized.' }
 
-  const clamp = (n: number, fallback: number) => {
-    if (!Number.isFinite(n)) return fallback
-    return Math.min(48, Math.max(1, Math.round(n)))
-  }
-
   const { data: existing } = await supabase
     .from('site_settings')
-    .select('handiworks_display_count, sold_display_count')
+    .select(SITE_SETTINGS_SELECT)
     .eq('id', 1)
     .maybeSingle()
 
-  const current: SiteSettings = {
-    handiworks_display_count: clamp(
-      Number(existing?.handiworks_display_count),
-      DEFAULT_SITE_SETTINGS.handiworks_display_count
-    ),
-    sold_display_count: clamp(
-      Number(existing?.sold_display_count),
-      DEFAULT_SITE_SETTINGS.sold_display_count
-    ),
-  }
+  const current = existing
+    ? mapSiteSettingsRow(existing as Record<string, unknown>)
+    : { ...DEFAULT_SITE_SETTINGS }
 
   const next: SiteSettings = {
+    ...current,
     handiworks_display_count:
       input.handiworks_display_count !== undefined
-        ? clamp(input.handiworks_display_count, current.handiworks_display_count)
+        ? clampSiteCount(input.handiworks_display_count, current.handiworks_display_count)
         : current.handiworks_display_count,
     sold_display_count:
       input.sold_display_count !== undefined
-        ? clamp(input.sold_display_count, current.sold_display_count)
+        ? clampSiteCount(input.sold_display_count, current.sold_display_count)
         : current.sold_display_count,
   }
 
@@ -588,34 +610,80 @@ export async function updateHomepageDisplayCounts(input: {
       .from('site_settings')
       .update(patch)
       .eq('id', 1)
-      .select('handiworks_display_count, sold_display_count')
+      .select(SITE_SETTINGS_SELECT)
       .single()
     if (error) return { ok: false, error: error.message }
     revalidateStorefront()
-    return {
-      ok: true,
-      data: {
-        handiworks_display_count: Number(data.handiworks_display_count),
-        sold_display_count: Number(data.sold_display_count),
-      },
-    }
+    return { ok: true, data: mapSiteSettingsRow(data as Record<string, unknown>) }
   }
 
   const { data, error } = await supabase
     .from('site_settings')
     .insert({ id: 1, ...patch })
-    .select('handiworks_display_count, sold_display_count')
+    .select(SITE_SETTINGS_SELECT)
     .single()
 
   if (error) return { ok: false, error: error.message }
   revalidateStorefront()
-  return {
-    ok: true,
-    data: {
-      handiworks_display_count: Number(data.handiworks_display_count),
-      sold_display_count: Number(data.sold_display_count),
-    },
+  return { ok: true, data: mapSiteSettingsRow(data as Record<string, unknown>) }
+}
+
+export async function updatePaymentMethods(input: {
+  paypal_handle?: string | null
+  zelle_target?: string | null
+}): Promise<ActionResult<SiteSettings>> {
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: 'Unauthorized.' }
+
+  const { data: existing } = await supabase
+    .from('site_settings')
+    .select(SITE_SETTINGS_SELECT)
+    .eq('id', 1)
+    .maybeSingle()
+
+  const current = existing
+    ? mapSiteSettingsRow(existing as Record<string, unknown>)
+    : { ...DEFAULT_SITE_SETTINGS }
+
+  const next: SiteSettings = {
+    ...current,
+    paypal_handle:
+      input.paypal_handle !== undefined
+        ? trimPaymentField(input.paypal_handle)
+        : current.paypal_handle,
+    zelle_target:
+      input.zelle_target !== undefined
+        ? trimPaymentField(input.zelle_target)
+        : current.zelle_target,
   }
+
+  const patch = { ...next, updated_at: new Date().toISOString() }
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from('site_settings')
+      .update(patch)
+      .eq('id', 1)
+      .select(SITE_SETTINGS_SELECT)
+      .single()
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/admin/messages')
+    revalidatePath('/admin')
+    revalidateStorefront()
+    return { ok: true, data: mapSiteSettingsRow(data as Record<string, unknown>) }
+  }
+
+  const { data, error } = await supabase
+    .from('site_settings')
+    .insert({ id: 1, ...patch })
+    .select(SITE_SETTINGS_SELECT)
+    .single()
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/admin/messages')
+  revalidatePath('/admin')
+  revalidateStorefront()
+  return { ok: true, data: mapSiteSettingsRow(data as Record<string, unknown>) }
 }
 
 /** Homepage hero banner (`current_build.hero_image`). Does not touch progress photos. */

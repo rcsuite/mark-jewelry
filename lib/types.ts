@@ -147,4 +147,15 @@ export type MarkMoment = {
 export type SiteSettings = {
   handiworks_display_count: number
   sold_display_count: number
+  /** PayPal.me slug, @username, or email. */
+  paypal_handle: string | null
+  /** Zelle email or phone. */
+  zelle_target: string | null
+}
+
+export type PaymentMethod = 'paypal' | 'zelle'
+
+export type PaymentHandles = {
+  paypal_handle: string | null
+  zelle_target: string | null
 }

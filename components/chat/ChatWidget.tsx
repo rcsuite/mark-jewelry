@@ -7,18 +7,23 @@ import {
   sendVisitorMessage,
 } from '@/lib/chat-actions'
 import type { ChatMessage } from '@/lib/chat-types'
+import type { PaymentHandles } from '@/lib/types'
 import { withPieceTag } from '@/lib/chat-format'
 import ChatBubbleBody from '@/components/chat/ChatBubbleBody'
 import { CHAT_FOCUS_EVENT, type ChatFocusDetail } from '@/components/chat/ContactProvider'
 
 type Props = {
   initiallyOpen?: boolean
+  paymentHandles?: PaymentHandles | null
 }
 
 const AWAY_COPY =
   "We're away from the bench right now so your message will notify our phones. We'll chat with you soon!"
 
-export default function ChatWidget({ initiallyOpen = false }: Props) {
+export default function ChatWidget({
+  initiallyOpen = false,
+  paymentHandles = null,
+}: Props) {
   const [open, setOpen] = useState(initiallyOpen)
   const [hasSession, setHasSession] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -169,7 +174,11 @@ export default function ChatWidget({ initiallyOpen = false }: Props) {
                     : 'mr-auto bg-[#18181B] border border-[#27272A] text-[#E4E4E7]'
                 }`}
               >
-                <ChatBubbleBody body={m.body} fallbackPieceId={threadPieceId} />
+                <ChatBubbleBody
+                  body={m.body}
+                  fallbackPieceId={threadPieceId}
+                  paymentHandles={paymentHandles}
+                />
               </div>
             ))}
             <div ref={bottomRef} />

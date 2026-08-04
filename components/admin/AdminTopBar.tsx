@@ -7,10 +7,11 @@ import { createClient } from '@/lib/supabase/client'
 import { countUnreadForMark } from '@/lib/chat-actions'
 import { countReviewDue } from '@/lib/review-actions'
 import type { SilverQuote } from '@/lib/silver'
-import type { Category, ShopPiece } from '@/lib/types'
+import type { Category, PaymentHandles, ShopPiece } from '@/lib/types'
 import AdminSilverStrip from '@/components/admin/AdminSilverStrip'
 import AdminPieceSearch from '@/components/admin/AdminPieceSearch'
 import PartnershipModal from '@/components/admin/PartnershipModal'
+import PaymentMethodsModal from '@/components/admin/PaymentMethodsModal'
 
 const FUTURES_URL = 'https://www.google.com/search?q=COMEX+silver+futures+SI%3DF'
 
@@ -20,6 +21,7 @@ type Props = {
   initialReviewDue: number
   pieces: ShopPiece[]
   categories: Category[]
+  paymentHandles: PaymentHandles
 }
 
 export default function AdminTopBar({
@@ -28,15 +30,22 @@ export default function AdminTopBar({
   initialReviewDue,
   pieces,
   categories,
+  paymentHandles: initialPaymentHandles,
 }: Props) {
   const [unread, setUnread] = useState(initialUnread)
   const [reviewDue, setReviewDue] = useState(initialReviewDue)
   const [gearOpen, setGearOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const [partnershipOpen, setPartnershipOpen] = useState(false)
+  const [paymentOpen, setPaymentOpen] = useState(false)
+  const [paymentHandles, setPaymentHandles] = useState(initialPaymentHandles)
   const gearRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const router = useRouter()
+
+  useEffect(() => {
+    setPaymentHandles(initialPaymentHandles)
+  }, [initialPaymentHandles])
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -190,7 +199,7 @@ export default function AdminTopBar({
               </svg>
             </button>
             {gearOpen && (
-              <div className="absolute right-0 top-full mt-1 w-44 bg-[#0A0C10] border border-[#27272A] shadow-xl z-50">
+              <div className="absolute right-0 top-full mt-1 w-48 bg-[#0A0C10] border border-[#27272A] shadow-xl z-50">
                 <Link
                   href="/"
                   className="block px-4 py-3 text-[10px] font-bold tracking-widest uppercase text-[#A1A1AA] hover:bg-[#14B8A6]/10 hover:text-white"
@@ -214,6 +223,16 @@ export default function AdminTopBar({
                 </Link>
                 <button
                   type="button"
+                  onClick={() => {
+                    setGearOpen(false)
+                    setPaymentOpen(true)
+                  }}
+                  className="w-full text-left px-4 py-3 text-[10px] font-bold tracking-widest uppercase text-[#A1A1AA] hover:bg-[#14B8A6]/10 hover:text-white"
+                >
+                  Payment options
+                </button>
+                <button
+                  type="button"
                   onClick={signOut}
                   disabled={signingOut}
                   className="w-full text-left px-4 py-3 text-[10px] font-bold tracking-widest uppercase text-red-400 hover:bg-red-950/40 disabled:opacity-50"
@@ -227,6 +246,12 @@ export default function AdminTopBar({
       </div>
 
       <PartnershipModal open={partnershipOpen} onClose={() => setPartnershipOpen(false)} />
+      <PaymentMethodsModal
+        open={paymentOpen}
+        onClose={() => setPaymentOpen(false)}
+        initialHandles={paymentHandles}
+        onSaved={setPaymentHandles}
+      />
     </div>
   )
 }
